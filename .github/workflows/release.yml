@@ -1,0 +1,122 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK packages
+        run: sdkmanager --install "platforms;android-36.1" "build-tools;36.0.0" "build-tools;36.1.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Resolve version
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          NAME="${TAG#v}"
+          if [[ "$NAME" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            CODE=$((10#${BASH_REMATCH[1]} * 10000 + 10#${BASH_REMATCH[2]} * 100 + 10#${BASH_REMATCH[3]}))
+          else
+            echo "::error::Tag '$TAG' is not vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "code=$CODE" >> "$GITHUB_OUTPUT"
+
+      - name: Build release APK
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: ./gradlew :app:assembleRelease --no-configuration-cache
+
+      - name: Collect APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/wearagent-${{ steps.version.outputs.name }}.apk"
+          ls -lh dist
+
+      - name: Compose release notes
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
+          if [ -n "$PREV" ]; then
+            SECTION="### Changes since $PREV"
+            CHANGES="$(git log --no-merges --pretty=format:'- %s (%h)' "$PREV..$TAG")"
+          else
+            SECTION="### Initial release"
+            CHANGES="$(git log --no-merges --pretty=format:'- %s (%h)' "$TAG")"
+          fi
+          [ -n "$CHANGES" ] || CHANGES="- No changes recorded."
+          {
+            echo "## WearAgent ${{ steps.version.outputs.name }}"
+            echo
+            echo "A lightweight AI chat client for Wear OS round-screen watches: SSE streaming for OpenAI-compatible (Completions / Responses) and Anthropic APIs, collapsible thinking traces, Markdown/LaTeX rendering, and an append-only JSONL session log."
+            echo
+            echo "### Build info"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Version | \`${{ steps.version.outputs.name }}\` (versionCode ${{ steps.version.outputs.code }}) |"
+            echo "| Commit | [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) |"
+            echo "| Built | $(date -u '+%Y-%m-%d %H:%M UTC') |"
+            echo "| Min SDK | 30 (Wear OS 3) |"
+            echo "| Target SDK | 36 |"
+            echo "| Signing | debug keystore — sideload only, not for store distribution |"
+            echo
+            echo "### Install"
+            echo
+            echo '```bash'
+            echo "adb install -r wearagent-${{ steps.version.outputs.name }}.apk"
+            echo '```'
+            echo
+            echo "Requires a Wear OS 3+ device or emulator. Configure an endpoint in Settings on first launch."
+            echo
+            echo "### Highlights"
+            echo
+            echo "- Streaming chat with reasoning/thinking traces and token usage"
+            echo "- Markdown + LaTeX rendering on a round screen"
+            echo "- JSONL session log — survives process kills, replays on relaunch"
+            echo "- Foreground service turn with a notification Stop action"
+            echo "- Multiple endpoint profiles, i18n (Chinese / English)"
+            echo
+            echo "$SECTION"
+            echo
+            echo "$CHANGES"
+          } > release-notes.md
+          cat release-notes.md
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/wearagent-${{ steps.version.outputs.name }}.apk" \
+            --title "WearAgent ${{ steps.version.outputs.name }}" \
+            --notes-file release-notes.md \
+            --verify-tag
