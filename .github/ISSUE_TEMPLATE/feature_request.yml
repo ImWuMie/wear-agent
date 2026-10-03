@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest an idea or improvement
+title: '[Feature] '
+labels: ['enhancement']
+body:
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that the app makes hard or impossible today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should the app do instead? Sketches of the round-screen flow are welcome.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: markdown
+    attributes:
+      value: |
+        ### Watch constraints
+
+        WearAgent targets small screens, low memory, and aggressive process kills. Features that need a large local model, long-running on-device compute, or a persistent large context are unlikely to be accepted — describe how your proposal stays within those limits.

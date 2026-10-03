@@ -1,0 +1,85 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please fill in as much as you can — watch behavior is hard to guess without the details below.
+
+        > **Never paste API keys, tokens, or private endpoint URLs.** Redact them (`sk-***`, `https://***/v1`).
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and did not find a duplicate
+          required: true
+        - label: I am running the latest release (or a build from `main`)
+          required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: Describe the actual behavior. Attach screenshots or a screen recording if the UI is involved.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Pull up → type "..."
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: WearAgent version
+      description: From Settings, or the release tag you installed (e.g. `v0.1.0`).
+      placeholder: v0.1.0
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Watch / emulator
+      placeholder: Galaxy Watch 6 / Wear OS emulator (API 34)
+    validations:
+      required: true
+  - type: input
+    id: wear-os
+    attributes:
+      label: Wear OS version
+      placeholder: Wear OS 4 (Android 13)
+    validations:
+      required: false
+  - type: dropdown
+    id: api-kind
+    attributes:
+      label: API type
+      options:
+        - OpenAI Completions
+        - OpenAI Responses
+        - Anthropic Messages
+        - Not applicable
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / crash output
+      description: |
+        `adb logcat -s WearAgent` or a stack trace. Wrap in triple backticks.
+      render: text
+    validations:
+      required: false
