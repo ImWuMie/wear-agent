@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Single-alpha silhouette for themed icons: bubble with the spark punched out. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M45,39H63A8,8 0 0 1 71,47V55A8,8 0 0 1 63,63H57L45,72V63A8,8 0 0 1 37,55V47A8,8 0 0 1 45,39Z M54,43Q55.5,49.5 62,51Q55.5,52.5 54,59Q52.5,52.5 46,51Q52.5,49.5 54,43Z" />
+</vector>
