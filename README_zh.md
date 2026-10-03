@@ -2,6 +2,11 @@
 
 [English](README.md) | **中文**
 
+<p align="center">
+  <img src="docs/screenshot_chat.png" width="260" alt="聊天：Markdown 与 LaTeX 渲染">
+  <img src="docs/screenshot_settings.png" width="260" alt="设置">
+</p>
+
 一个为 Wear OS 圆屏手表打造的轻量 AI 聊天客户端。在手表上直接对话任意 OpenAI 兼容接口（或 Anthropic），支持流式回复、思维链展示、Markdown/LaTeX 渲染 —— 全部在手表的约束内完成：小屏幕、低内存。
 
 ## 功能
