@@ -14,7 +14,7 @@
 - **流式聊天** —— OpenAI Completions / Responses 和 Anthropic Messages 的 SSE 流式输出
 - **圆屏原生 UI** —— 官方 Wear Compose Material 3
 - **上拉抽屉** —— 把手常驻离底 9dp；上拉出输入框，再拉出设置
-- **Markdown + LaTeX** —— Commonmark（GFM 表格/删除线）；行内与块级公式用 JLaTeXMath 渲染
+- **Markdown + LaTeX** —— Commonmark（GFM 表格/删除线）；`$..$`、`$$..$$`、`\(..\)`、`\[..\]` 四种公式定界符，行内或块级均用 JLaTeXMath 渲染；转义美元符与行内代码不被误判
 - **思维链** —— 推理模型（如 DeepSeek）的思考过程流入回复气泡内的可折叠块：思考中自动展开，正文开始自动收起，随消息持久化保存
 - **Token 用量** —— 每条回复底部显示 `↓ 输出, ↑ 输入 (缓存) · t/s`
 - **消息操作** —— 长按气泡弹出全屏操作页：复制、选择文本、重新生成（用户消息也支持）、修改、删除

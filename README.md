@@ -14,7 +14,7 @@ A lightweight AI chat client for Wear OS round-screen watches. Talk to any OpenA
 - **Streaming chat** — SSE streaming for OpenAI Completions / Responses and Anthropic Messages APIs
 - **Round-screen native UI** — official Wear Compose Material 3
 - **Pull-up drawer** — a drag handle hovers 9dp above the screen bottom; pull up for the input bar, pull further for Settings
-- **Markdown + LaTeX** — CommonMark with GFM tables/strikethrough; inline and block formulas rendered via JLaTeXMath
+- **Markdown + LaTeX** — CommonMark with GFM tables/strikethrough; `$..$`, `$$..$$`, `\(..\)` and `\[..\]` formulas rendered inline or as blocks via JLaTeXMath, with literal dollars and code spans left untouched
 - **Thinking traces** — reasoning models (e.g. DeepSeek) stream their chain of thought into a collapsible block inside the reply bubble; it auto-expands while thinking, auto-collapses when the body starts, and is persisted with the message
 - **Token usage** — each reply shows `↓ out, ↑ in (cached) · t/s`
 - **Message actions** — long-press a bubble for a fullscreen action page: copy, select text, regenerate (works on user messages too), edit, delete
