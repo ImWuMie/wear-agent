@@ -1,5 +1,7 @@
 # WearAgent
 
+**English** | [中文](README_zh.md)
+
 A lightweight AI chat client for Wear OS round-screen watches. Talk to any OpenAI-compatible API (or Anthropic) right from your wrist, with streaming replies, thinking traces, and Markdown/LaTeX rendering — all within the constraints of a watch: small screen, limited memory.
 
 ## Features
