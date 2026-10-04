@@ -38,11 +38,41 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Configure release signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            # Fork pull requests get no secrets; the build.then falls back to the debug key.
+            echo "::warning::No keystore secret available; the release APK will be debug-signed."
+            exit 0
+          fi
+          mkdir -p keystore
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > keystore/wearagent.jks
+          {
+            echo "SIGNING_STORE_FILE=keystore/wearagent.jks"
+            echo "SIGNING_STORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "SIGNING_KEY_ALIAS=$KEY_ALIAS"
+            echo "SIGNING_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
+
       - name: Build debug APK
         run: ./gradlew :app:assembleDebug --no-configuration-cache
 
       - name: Build release APK
         run: ./gradlew :app:assembleRelease --no-configuration-cache
+
+      - name: Verify release signature
+        run: |
+          APKSIGNER="$(find "$ANDROID_HOME" -name apksigner -type f | head -1)"
+          "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk
+          if [ -n "$SIGNING_STORE_FILE" ] && "$APKSIGNER" verify --print-certs app/build/outputs/apk/release/app-release.apk | grep -qi "CN=Android Debug"; then
+            echo "::error::Keystore was provided but the APK is debug-signed"
+            exit 1
+          fi
 
       - name: Upload APKs
         uses: actions/upload-artifact@v4
