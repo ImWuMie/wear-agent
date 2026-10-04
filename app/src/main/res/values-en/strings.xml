@@ -51,4 +51,10 @@
     <string name="fetch_models_hint">Or type a model name below</string>
     <string name="api_key">API key</string>
     <string name="save">Save</string>
+    <string name="about">About</string>
+    <string name="about_tagline">AI chat client for Wear OS round-screen watches</string>
+    <string name="about_source">View source</string>
+    <string name="about_issues">Report an issue</string>
+    <string name="about_license">License</string>
+    <string name="about_link_failed">Open the link on your phone</string>
 </resources>

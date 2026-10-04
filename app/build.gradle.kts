@@ -34,6 +34,7 @@ android {
     useLibrary("wear-sdk")
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -63,4 +64,5 @@ implementation(libs.lifecycle.runtime.compose)
     implementation(libs.jlatexmath)
     implementation(libs.jlatexmath.greek)
     implementation(libs.jlatexmath.cyrillic)
+    implementation(libs.wear.remote.interactions)
 }

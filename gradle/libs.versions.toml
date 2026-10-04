@@ -13,6 +13,7 @@ wearCompose = "1.5.6"
 lifecycle = "2.9.4"
 commonmark = "0.24.0"
 jlatexmath = "0.2.0"
+wearRemoteInteractions = "1.2.0"
 
 [libraries]
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
@@ -36,6 +37,7 @@ commonmark-gfm-strikethrough = { group = "org.commonmark", name = "commonmark-ex
 jlatexmath = { group = "ru.noties", name = "jlatexmath-android", version.ref = "jlatexmath" }
 jlatexmath-greek = { group = "ru.noties", name = "jlatexmath-android-font-greek", version.ref = "jlatexmath" }
 jlatexmath-cyrillic = { group = "ru.noties", name = "jlatexmath-android-font-cyrillic", version.ref = "jlatexmath" }
+wear-remote-interactions = { group = "androidx.wear", name = "wear-remote-interactions", version.ref = "wearRemoteInteractions" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

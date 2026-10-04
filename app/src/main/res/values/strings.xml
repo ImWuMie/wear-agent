@@ -50,4 +50,10 @@
     <string name="fetch_models_hint">可在下方手动输入模型名</string>
     <string name="api_key">密钥</string>
     <string name="save">保存</string>
+    <string name="about">关于</string>
+    <string name="about_tagline">Wear OS 圆屏 AI 聊天客户端</string>
+    <string name="about_source">查看源码</string>
+    <string name="about_issues">反馈问题</string>
+    <string name="about_license">许可证</string>
+    <string name="about_link_failed">请在手机上打开链接</string>
 </resources>

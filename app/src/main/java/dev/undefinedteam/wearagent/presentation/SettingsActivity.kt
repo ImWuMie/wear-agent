@@ -1,6 +1,7 @@
 package dev.undefinedteam.wearagent.presentation
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -12,7 +13,23 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.painterResource
+import androidx.core.content.ContextCompat
+import androidx.wear.remote.interactions.RemoteActivityHelper
+import androidx.compose.ui.text.style.TextAlign
+import dev.undefinedteam.wearagent.BuildConfig
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -41,6 +58,7 @@ import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.CircularProgressIndicator
+import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.ListHeader
 import androidx.wear.compose.material3.ListSubHeader
 import androidx.wear.compose.material3.MaterialTheme
@@ -65,7 +83,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private enum class Page { HOME, SESSIONS, ENDPOINTS, ENDPOINT, MODELS, INPUT, DISPLAY, LANGUAGE }
+private enum class Page { HOME, SESSIONS, ENDPOINTS, ENDPOINT, MODELS, INPUT, DISPLAY, LANGUAGE, ABOUT }
+
+private const val REPO_URL = "https://github.com/ImWuMie/wear-agent"
 
 class SettingsActivity : ComponentActivity() {
     override fun attachBaseContext(newBase: android.content.Context) {
@@ -115,7 +135,7 @@ private fun SettingsScreen(store: SettingsStore, sessions: SessionLog) {
         page = when (page) {
             Page.ENDPOINT -> Page.ENDPOINTS
             Page.MODELS -> Page.ENDPOINT
-            Page.DISPLAY, Page.LANGUAGE, Page.INPUT -> Page.HOME
+            Page.DISPLAY, Page.LANGUAGE, Page.INPUT, Page.ABOUT -> Page.HOME
             else -> Page.HOME
         }
     }
@@ -201,6 +221,13 @@ private fun SettingsScreen(store: SettingsStore, sessions: SessionLog) {
                                     spec,
                                     stringResource(R.string.language)
                                 ) { navigate(Page.LANGUAGE) }
+                            }
+                            item {
+                                SettingRow(
+                                    this,
+                                    spec,
+                                    stringResource(R.string.about)
+                                ) { navigate(Page.ABOUT) }
                             }
                         }
 
@@ -533,6 +560,103 @@ private fun SettingsScreen(store: SettingsStore, sessions: SessionLog) {
                             }
                         }
 
+                        Page.ABOUT -> {
+                            item {
+                                val itemScope = this
+                                val transformation = with(itemScope) { SurfaceTransformation(spec) }
+                                Column(
+                                    Modifier
+                                        .transformedHeight(itemScope, spec)
+                                        .graphicsLayer { with(transformation) { applyContainerTransformation() } }
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 6.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Image(
+                                        painterResource(R.drawable.ic_app_icon),
+                                        contentDescription = null,
+                                        Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(12.dp)),
+                                        contentScale = ContentScale.Fit,
+                                    )
+                                    Text(
+                                        stringResource(R.string.app_name),
+                                        Modifier.padding(top = 5.dp),
+                                        style = MaterialTheme.typography.titleMedium,
+                                    )
+                                    Text(
+                                        "v" + BuildConfig.VERSION_NAME,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                    Text(
+                                        stringResource(R.string.about_tagline),
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 4.dp, start = 10.dp, end = 10.dp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        textAlign = TextAlign.Center,
+                                    )
+                                }
+                            }
+                            item {
+                                val itemScope = this
+                                val transformation = with(itemScope) { SurfaceTransformation(spec) }
+                                Row(
+                                    Modifier
+                                        .transformedHeight(itemScope, spec)
+                                        .graphicsLayer { with(transformation) { applyContainerTransformation() } }
+                                        .fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Row(
+                                        Modifier
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .clickable { openUrl(context, REPO_URL) }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Icon(
+                                            painterResource(R.drawable.ic_github),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.primary,
+                                        )
+                                        Text(
+                                            REPO_URL.removePrefix("https://"),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            style = MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                }
+                            }
+                            item {
+                                val itemScope = this
+                                val transformation = with(itemScope) { SurfaceTransformation(spec) }
+                                Column(
+                                    Modifier
+                                        .transformedHeight(itemScope, spec)
+                                        .graphicsLayer { with(transformation) { applyContainerTransformation() } }
+                                        .fillMaxWidth()
+                                        .padding(bottom = 8.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    LinkRow(
+                                        stringResource(R.string.about_issues),
+                                        "issues",
+                                    ) { openUrl(context, "$REPO_URL/issues") }
+                                    LinkRow(
+                                        stringResource(R.string.about_license),
+                                        "blob/main/LICENSE",
+                                    ) { openUrl(context, "$REPO_URL/blob/main/LICENSE") }
+                                }
+                            }
+                        }
+
                         Page.MODELS -> {
                             val profile = current.endpoints.firstOrNull { it.id == editing }
                             if (profile != null) {
@@ -667,6 +791,51 @@ private fun SettingSwitch(
     )
 }
 
+/** One About link: a muted label followed by its blue path, tappable as a whole. */
+@Composable
+private fun LinkRow(label: String, path: String, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Text(
+            path,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+}
+
+/**
+ * Opens a link on the paired phone. Wear OS has no browser and refuses a plain ACTION_VIEW
+ * (`URI_REDIRECT_TO_REMOTE` is signature|privileged), so the intent goes through
+ * [RemoteActivityHelper], which hands it to the companion device.
+ */
+private fun openUrl(context: android.content.Context, url: String) {
+    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
+    val executor = ContextCompat.getMainExecutor(context)
+    RemoteActivityHelper(context, executor)
+        .startRemoteActivity(intent, null)
+        .addListener(
+            {
+                // The paired phone is unreachable (not paired, offline, or an emulator without a
+                // companion). Say so instead of retrying locally: a watch has no browser and
+                // ACTION_VIEW is rejected by the system broker.
+                Toast.makeText(context, R.string.about_link_failed, Toast.LENGTH_SHORT).show()
+            },
+            executor,
+        )
+}
+
 @Composable
 private fun Scaled(
     scope: TransformingLazyColumnItemScope,
@@ -709,6 +878,7 @@ private fun title(page: Page): String = stringResource(
         Page.INPUT -> R.string.input_mode
         Page.DISPLAY -> R.string.display
         Page.LANGUAGE -> R.string.language
+        Page.ABOUT -> R.string.about
     },
 )
 
