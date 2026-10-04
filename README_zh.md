@@ -46,6 +46,25 @@ gradlew.bat :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### 发布签名
+
+`assembleRelease` 在配置了发布密钥时使用正式签名，否则回退到 debug 密钥（保证本地构建可用）。
+本地配置写在 `keystore.properties`（已 gitignore，可复制 `keystore.properties.example`）：
+
+```properties
+storeFile=keystore/wearagent.jks
+storePassword=...
+keyAlias=wearagent
+keyPassword=...
+```
+
+CI 通过同名环境变量传入这些值（`SIGNING_STORE_FILE`、`SIGNING_STORE_PASSWORD`、
+`SIGNING_KEY_ALIAS`、`SIGNING_KEY_PASSWORD`），由仓库 secrets（`KEYSTORE_BASE64`、
+`KEYSTORE_PASSWORD`、`KEY_ALIAS`、`KEY_PASSWORD`）填充。发布流程在缺少密钥时会直接失败，
+并校验产物不是 debug 签名。
+
+请务必保管好密钥库：丢失后将无法用同一包名更新已安装的正式版本。
+
 ## 配置
 
 1. 打开应用 → 上拉抽屉 → 设置

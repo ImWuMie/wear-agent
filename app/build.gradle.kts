@@ -1,6 +1,20 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+// Release signing: CI injects the values as secrets; locally they come from
+// keystore.properties (gitignored). Without either, release falls back to the debug key.
+val signingProps = Properties().apply {
+    val file = rootProject.file("keystore.properties")
+    if (file.exists()) file.inputStream().use { load(it) }
+    fun env(key: String) = System.getenv(key)?.takeIf { it.isNotBlank() }
+    env("SIGNING_STORE_FILE")?.let { setProperty("storeFile", it) }
+    env("SIGNING_STORE_PASSWORD")?.let { setProperty("storePassword", it) }
+    env("SIGNING_KEY_ALIAS")?.let { setProperty("keyAlias", it) }
+    env("SIGNING_KEY_PASSWORD")?.let { setProperty("keyPassword", it) }
 }
 
 android {
@@ -19,9 +33,31 @@ android {
         versionName = System.getenv("VERSION_NAME") ?: "1.0"
     }
 
+    signingConfigs {
+        create("release") {
+            val storePath = signingProps.getProperty("storeFile")
+            if (storePath != null) {
+                storeFile = rootProject.file(storePath)
+                storePassword = signingProps.getProperty("storePassword")
+                keyAlias = signingProps.getProperty("keyAlias")
+                keyPassword = signingProps.getProperty("keyPassword")
+                // v1 is unnecessary above API 24; v3 enables future key rotation.
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            // Use the real key when configured; otherwise keep the debug key so tag builds
+            // (which always set the secrets) and local runs both succeed.
+            signingConfig = if (signingProps.getProperty("storeFile") != null) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             optimization {
                 enable = true
             }

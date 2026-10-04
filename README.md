@@ -46,6 +46,28 @@ gradlew.bat :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Release signing
+
+`assembleRelease` uses the release keystore when it is configured, and falls back to the debug
+key otherwise (so local builds still work). Configure it locally with `keystore.properties`
+(gitignored; copy `keystore.properties.example`):
+
+```properties
+storeFile=keystore/wearagent.jks
+storePassword=...
+keyAlias=wearagent
+keyPassword=...
+```
+
+CI passes the same values as environment variables (`SIGNING_STORE_FILE`,
+`SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`), populated from the
+`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` and `KEY_PASSWORD` repository secrets. The
+release workflow refuses to publish when the keystore is missing, and verifies the resulting APK
+is not debug-signed.
+
+Keep the keystore backed up: losing it means you can no longer update an installed release under
+the same package name.
+
 ## Setup
 
 1. Open the app → pull up the drawer → Settings
