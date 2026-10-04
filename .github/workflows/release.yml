@@ -92,6 +92,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
+          APK="$(pwd)/app/build/outputs/apk/release/app-release.apk"
+          apksigner() {
+            local bin
+            bin="$(find "$ANDROID_HOME" -name 'apksigner*' -type f 2>/dev/null | head -1)"
+            "$bin" "$@"
+          }
           PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
           {
             echo "## WearAgent ${{ steps.version.outputs.name }}"
@@ -139,7 +145,14 @@ jobs:
             echo "| Built | $(date -u '+%Y-%m-%d %H:%M UTC') |"
             echo "| Min SDK | 30 (Wear OS 3) |"
             echo "| Target SDK | 36 |"
-            echo "| Signing | debug keystore — sideload only, not for store distribution |"
+            # Reflect the actual signer instead of a hardcoded claim.
+            CERT="$(apksigner verify --print-certs "$APK" 2>/dev/null | grep -m1 "certificate DN" | sed 's/.*certificate DN: //')"
+            CN="$(printf '%s' "$CERT" | sed -n 's/.*CN=\([^,]*\).*/\1/p')"
+            if [ -n "$CN" ]; then
+              echo "| Signing | release keystore (CN=$CN) |"
+            else
+              echo "| Signing | **unverified** — inspect the APK before distributing |"
+            fi
             echo
             echo "### Install"
             echo
