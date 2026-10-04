@@ -64,6 +64,8 @@ jobs:
           ls -lh dist
 
       - name: Compose release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
@@ -71,8 +73,15 @@ jobs:
             echo "## WearAgent ${{ steps.version.outputs.name }}"
             echo
 
-            # Author-written summary: the annotated tag body, if any.
-            NOTES="$(git tag -l --format='%(contents:body)' "$TAG" | sed -e 's/[[:space:]]*$//' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
+            # Author-written summary: the annotated tag body, if any. Read it from the API
+            # because actions/checkout rewrites refs/tags/<tag> to a lightweight tag at the
+            # commit, which makes `git tag --format` fall back to the commit message.
+            TAG_OBJ="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${TAG}" --jq .object.sha 2>/dev/null || true)"
+            NOTES=""
+            if [ -n "$TAG_OBJ" ]; then
+              NOTES="$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${TAG_OBJ}" --jq .message 2>/dev/null \
+                | tail -n +3 | sed -e 's/[[:space:]]*$//' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
+            fi
             if [ -n "$NOTES" ]; then echo "$NOTES"; echo; fi
 
             if [ -n "$PREV" ]; then
