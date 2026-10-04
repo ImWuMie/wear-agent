@@ -67,20 +67,37 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           PREV="$(git describe --tags --abbrev=0 "${TAG}^" 2>/dev/null || true)"
-          if [ -n "$PREV" ]; then
-            SECTION="### Changes since $PREV"
-            CHANGES="$(git log --no-merges --pretty=format:'- %s (%h)' "$PREV..$TAG")"
-          else
-            SECTION="### Initial release"
-            CHANGES="$(git log --no-merges --pretty=format:'- %s (%h)' "$TAG")"
-          fi
-          [ -n "$CHANGES" ] || CHANGES="- No changes recorded."
           {
             echo "## WearAgent ${{ steps.version.outputs.name }}"
             echo
-            echo "A lightweight AI chat client for Wear OS round-screen watches: SSE streaming for OpenAI-compatible (Completions / Responses) and Anthropic APIs, collapsible thinking traces, Markdown/LaTeX rendering, and an append-only JSONL session log."
+
+            # Author-written summary: the annotated tag body, if any.
+            NOTES="$(git tag -l --format='%(contents:body)' "$TAG" | sed -e 's/[[:space:]]*$//' | sed -e :a -e '/^\n*$/{$d;N;ba' -e '}')"
+            if [ -n "$NOTES" ]; then echo "$NOTES"; echo; fi
+
+            if [ -n "$PREV" ]; then
+              echo "### Changes since $PREV"
+              RANGE="$PREV..$TAG"
+            else
+              echo "### Commits"
+              RANGE="$TAG"
+            fi
             echo
-            echo "### Build info"
+            GROUPED="$(git log --no-merges --pretty=format:'%s|%h' "$RANGE" | awk -F'|' '
+              {
+                line = "- " $1 " (" $2 ")"
+                if ($1 ~ /^feat/) feats = feats line "\n"
+                else if ($1 ~ /^fix/) fixes = fixes line "\n"
+                else other = other line "\n"
+              }
+              END {
+                if (feats != "") printf "#### Features\n\n%s\n", feats
+                if (fixes != "") printf "#### Fixes\n\n%s\n", fixes
+                if (other != "") printf "#### Other\n\n%s\n", other
+              }')"
+            if [ -n "$GROUPED" ]; then echo "$GROUPED"; else echo "- No changes recorded."; fi
+
+            echo "### Build"
             echo
             echo "| | |"
             echo "|---|---|"
@@ -96,20 +113,6 @@ jobs:
             echo '```bash'
             echo "adb install -r wearagent-${{ steps.version.outputs.name }}.apk"
             echo '```'
-            echo
-            echo "Requires a Wear OS 3+ device or emulator. Configure an endpoint in Settings on first launch."
-            echo
-            echo "### Highlights"
-            echo
-            echo "- Streaming chat with reasoning/thinking traces and token usage"
-            echo "- Markdown + LaTeX rendering on a round screen"
-            echo "- JSONL session log — survives process kills, replays on relaunch"
-            echo "- Foreground service turn with a notification Stop action"
-            echo "- Multiple endpoint profiles, i18n (Chinese / English)"
-            echo
-            echo "$SECTION"
-            echo
-            echo "$CHANGES"
           } > release-notes.md
           cat release-notes.md
 
