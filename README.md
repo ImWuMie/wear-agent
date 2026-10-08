@@ -39,42 +39,12 @@ flowchart LR
 
 ## Build
 
-Requires JDK 21 and Android SDK 36.1.
+Requires JDK 17+, Android SDK 36.
 
 ```bash
-./gradlew :app:assembleDebug
+gradlew.bat :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
-
-On Windows, use `gradlew.bat` instead of `./gradlew`.
-
-### Device compatibility
-
-The app does not require the `com.google.android.wearable` system library. Installation, the chat home screen, and the settings screen were verified on ARC-AL00 (Android API 31). Other customized systems need separate verification.
-Links on the About page require Wear OS phone integration. This feature is not guaranteed on non-Wear OS systems.
-
-The customized installer on this ARC-AL00 blocks ADB installation. Before installation, temporarily run `adb shell pm disable-user --user 0 com.android.packageinstaller`.
-After installation, immediately run `adb shell pm enable --user 0 com.android.packageinstaller`. Restore the installer even if installation fails.
-Use this procedure only on customized systems that require it. Do not disable the installer by default on other devices. If multiple devices are connected, add `-s` to each command to select the target.
-
-### Debug through a phone
-
-Connect the phone and watch to the same local network. Connect the computer to the phone's SSH service through Tailscale. Run this command on the computer, replacing the uppercase placeholders:
-
-```bash
-ssh -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15555:WATCH_IP:ADB_PORT \
-  -p PHONE_SSH_PORT PHONE_USER@PHONE_TAILSCALE_IP
-```
-
-Keep SSH running. In another computer terminal, run:
-
-```bash
-adb connect 127.0.0.1:15555
-adb -s 127.0.0.1:15555 install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-This example requires regular TCP ADB on the watch. If the watch requires wireless pairing, also forward its pairing port and run `adb pair`.
 
 ### Release signing
 

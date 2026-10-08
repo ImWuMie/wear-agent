@@ -39,42 +39,12 @@ flowchart LR
 
 ## 构建
 
-需要 JDK 21、Android SDK 36.1。
+需要 JDK 17+、Android SDK 36。
 
 ```bash
-./gradlew :app:assembleDebug
+gradlew.bat :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
-
-Windows 使用 `gradlew.bat` 代替 `./gradlew`。
-
-### 真机兼容性
-
-应用不要求 `com.google.android.wearable` 系统库。已在 ARC-AL00（Android API 31）上验证安装、聊天首页和设置页。其他定制系统仍需单独验证。
-关于页的手机远程打开链接依赖 Wear OS 手机协同能力，在非 Wear OS 系统上不保证可用。
-
-此 ARC-AL00 的定制安装器会阻止 ADB 安装。安装前需临时执行 `adb shell pm disable-user --user 0 com.android.packageinstaller`。
-安装结束后立即执行 `adb shell pm enable --user 0 com.android.packageinstaller`；安装失败时也必须恢复。
-此步骤仅适用于需要该操作的定制系统，不要在其他设备上默认停用安装器。连接多个设备时，各命令加上 `-s` 指定目标。
-
-### 通过手机中转调试
-
-手机与手表连接同一局域网，电脑通过 Tailscale 访问手机的 SSH 服务。在电脑执行以下命令，替换大写占位值：
-
-```bash
-ssh -N -o ExitOnForwardFailure=yes \
-  -L 127.0.0.1:15555:WATCH_IP:ADB_PORT \
-  -p PHONE_SSH_PORT PHONE_USER@PHONE_TAILSCALE_IP
-```
-
-保持 SSH 运行，在另一个电脑终端执行：
-
-```bash
-adb connect 127.0.0.1:15555
-adb -s 127.0.0.1:15555 install -r app/build/outputs/apk/debug/app-debug.apk
-```
-
-此示例适用于已启用普通 TCP ADB 的设备。若手表要求无线配对，还需单独转发配对端口并执行 `adb pair`。
 
 ### 发布签名
 
