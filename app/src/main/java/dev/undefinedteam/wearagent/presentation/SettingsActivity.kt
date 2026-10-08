@@ -83,7 +83,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
-private enum class Page { HOME, SESSIONS, ENDPOINTS, ENDPOINT, MODELS, INPUT, DISPLAY, LANGUAGE, ABOUT }
+private enum class Page { HOME, SESSIONS, ENDPOINTS, ENDPOINT, MODELS, INPUT, TOOLS, DISPLAY, LANGUAGE, ABOUT }
 
 private const val REPO_URL = "https://github.com/ImWuMie/wear-agent"
 
@@ -135,7 +135,7 @@ private fun SettingsScreen(store: SettingsStore, sessions: SessionLog) {
         page = when (page) {
             Page.ENDPOINT -> Page.ENDPOINTS
             Page.MODELS -> Page.ENDPOINT
-            Page.DISPLAY, Page.LANGUAGE, Page.INPUT, Page.ABOUT -> Page.HOME
+            Page.DISPLAY, Page.LANGUAGE, Page.INPUT, Page.TOOLS, Page.ABOUT -> Page.HOME
             else -> Page.HOME
         }
     }
@@ -207,6 +207,13 @@ private fun SettingsScreen(store: SettingsStore, sessions: SessionLog) {
                                     spec,
                                     stringResource(R.string.input_mode)
                                 ) { navigate(Page.INPUT) }
+                            }
+                            item {
+                                SettingRow(
+                                    this,
+                                    spec,
+                                    stringResource(R.string.tools)
+                                ) { navigate(Page.TOOLS) }
                             }
                             item {
                                 SettingRow(
@@ -484,6 +491,29 @@ private fun SettingsScreen(store: SettingsStore, sessions: SessionLog) {
                                     current.imeSends
                                 ) { value ->
                                     scope.launch { store.setImeSends(value) }
+                                }
+                            }
+                        }
+
+                        Page.TOOLS -> {
+                            item {
+                                SettingSwitch(
+                                    this,
+                                    spec,
+                                    stringResource(R.string.web_search),
+                                    current.webSearchEnabled
+                                ) { value ->
+                                    scope.launch { store.setWebSearchEnabled(value) }
+                                }
+                            }
+                            item {
+                                Scaled(this, spec) {
+                                    Text(
+                                        stringResource(R.string.web_search_privacy),
+                                        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
                                 }
                             }
                         }
@@ -876,6 +906,7 @@ private fun title(page: Page): String = stringResource(
         Page.ENDPOINTS, Page.ENDPOINT -> R.string.endpoints
         Page.MODELS -> R.string.model
         Page.INPUT -> R.string.input_mode
+        Page.TOOLS -> R.string.tools
         Page.DISPLAY -> R.string.display
         Page.LANGUAGE -> R.string.language
         Page.ABOUT -> R.string.about

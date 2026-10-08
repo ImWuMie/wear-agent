@@ -18,12 +18,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.InterruptedIOException
 
 /**
  * Owns one model turn. The activity only renders [state]; the transcript is
@@ -31,7 +31,7 @@ import java.io.InterruptedIOException
  */
 class AgentService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private val client = ChatClient()
+    private var runner: ToolLoop? = null
     private val stateFlow = MutableStateFlow(TurnState())
     private var turn: Job? = null
     private lateinit var log: SessionLog
@@ -61,32 +61,20 @@ class AgentService : Service() {
     override fun onBind(intent: Intent?): IBinder = LocalBinder()
 
     fun stopTurn() {
-        client.cancel()
-        turn?.cancel()
-        turn = null
-        val partial = stateFlow.value.text
-        if (partial.isNotBlank()) {
-            scope.launch(Dispatchers.IO) {
-                val config = settings.settings.first()
-                val id = (log.load(config.sessionId).maxOfOrNull { it.id } ?: 0L) + 1L
-                log.append(
-                    config.sessionId,
-                    ChatMessage(
-                        id,
-                        fromUser = false,
-                        text = partial,
-                        reasoning = stateFlow.value.reasoning
-                    )
-                )
-            }
-        }
-        stateFlow.value = TurnState(running = false)
-        stopForeground(STOP_FOREGROUND_DETACH)
-        stopSelf()
+        // Let the IO worker pair canceled calls and persist its partial turn exactly once.
+        runner?.cancel()
+    }
+
+    override fun onDestroy() {
+        runner?.cancel()
+        scope.cancel()
+        super.onDestroy()
     }
 
     private fun startTurn() {
         if (turn?.isActive == true) return
+        val currentRunner = ToolLoop()
+        runner = currentRunner
         startForeground(
             NOTIFICATION_ID,
             notification(),
@@ -94,114 +82,57 @@ class AgentService : Service() {
         )
         stateFlow.value = TurnState(running = true)
         turn = scope.launch {
-            val result = withContext(Dispatchers.IO) { runTurn() }
-            stateFlow.value = result
-            stopForeground(STOP_FOREGROUND_DETACH)
-            stopSelf()
-        }
-    }
-
-    private suspend fun runTurn(): TurnState {
-        val config = settings.settings.first()
-        val history = log.load(config.sessionId)
-        if (config.endpoint.isBlank() || config.model.isBlank() || config.apiKey.isBlank()) {
-            return finish("", error = getString(R.string.missing_endpoint))
-        }
-        val text = StringBuilder()
-        val reasoning = StringBuilder()
-        var totalPrompt = 0
-        var totalCached = 0
-        var totalCompletion = 0
-        var totalMs = 0L
-        val providerHistory =
-            ArrayList<TranscriptItem>(history.map { TranscriptItem.Text(it.fromUser, it.text) })
-        // TODO(tools): single round only; re-add the multi-round tool loop with Harness.
-        val reply = StringBuilder()
-        val turn = streamInto(config, providerHistory, reply, reasoning)
-        if (turn.error != CANCELED && turn.error == null && reply.isEmpty()) return finish(
-            "",
-            sessionId = config.sessionId,
-            reasoning = reasoning.toString()
-        )
-        text.append(reply)
-        turn.usage?.let { u ->
-            totalPrompt += u.prompt
-            totalCached += u.cached
-            totalCompletion += u.completion
-        }
-        totalMs += turn.elapsedMs
-        return finish(
-            text.toString(),
-            turn.error,
-            config.sessionId,
-            reasoning.toString(),
-            totalPrompt,
-            totalCached,
-            totalCompletion,
-            totalMs
-        )
-    }
-
-    private data class StreamResult(
-        val error: String? = null,
-        val usage: ChatClient.Usage? = null,
-        val elapsedMs: Long = 0,
-    )
-
-    private fun streamInto(
-        config: dev.undefinedteam.wearagent.session.AgentSettings,
-        history: List<TranscriptItem>,
-        reply: StringBuilder,
-        reasoning: StringBuilder,
-    ): StreamResult {
-        return try {
-            val outcome = client.stream(
-                config,
-                history,
-                onText = { delta ->
-                    reply.append(delta)
-                    publish(reply.toString(), reasoning.toString())
-                },
-                onReasoning = { delta ->
-                    reasoning.append(delta)
-                    publish(reply.toString(), reasoning.toString())
-                },
-            )
-            StreamResult(usage = outcome.usage, elapsedMs = outcome.elapsedMs)
-        } catch (error: InterruptedIOException) {
-            StreamResult(error = CANCELED)
-        } catch (error: Exception) {
-            StreamResult(error = error.message ?: error.javaClass.simpleName)
-        }
-    }
-
-    private fun publish(text: String, reasoning: String) {
-        scope.launch {
-            stateFlow.value = TurnState(running = true, text = text, reasoning = reasoning)
-        }
-    }
-
-    private fun finish(
-        text: String,
-        error: String? = null,
-        sessionId: String = "",
-        reasoning: String = "",
-        promptTokens: Int = 0,
-        cachedTokens: Int = 0,
-        completionTokens: Int = 0,
-        elapsedMs: Long = 0,
-    ): TurnState {
-        if (text.isNotBlank() && error != CANCELED) {
-            val id = (log.load(sessionId).maxOfOrNull { it.id } ?: 0L) + 1L
-            log.append(
-                sessionId, ChatMessage(
-                    id, fromUser = false, text = text, reasoning = reasoning,
-                    promptTokens = promptTokens, cachedTokens = cachedTokens,
-                    completionTokens = completionTokens, elapsedMs = elapsedMs,
+            try {
+                stateFlow.value = withContext(Dispatchers.IO) { runTurn(currentRunner) }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                stateFlow.value = stateFlow.value.copy(
+                    running = false,
+                    error = error.message ?: error.javaClass.simpleName,
                 )
+            } finally {
+                runner = null
+                stopForeground(STOP_FOREGROUND_DETACH)
+                stopSelf()
+            }
+        }
+    }
+
+    private suspend fun runTurn(currentRunner: ToolLoop): TurnState {
+        val config = settings.settings.first()
+        if (config.endpoint.isBlank() || config.model.isBlank() || config.apiKey.isBlank()) {
+            return TurnState(error = getString(R.string.missing_endpoint))
+        }
+        val history = log.load(config.sessionId)
+        val providerHistory = ArrayList<TranscriptItem>()
+        for (message in history) {
+            if (!message.fromUser && message.transcript.isNotEmpty()) {
+                providerHistory.addAll(message.transcript)
+            } else {
+                providerHistory.add(TranscriptItem.Text(message.fromUser, message.text))
+            }
+        }
+        val outcome = currentRunner.run(config, providerHistory) { stateFlow.value = it }
+        val result = outcome.state
+        if (result.text.isNotBlank() || result.reasoning.isNotBlank() || outcome.transcript.isNotEmpty()) {
+            val id = (log.load(config.sessionId).maxOfOrNull { it.id } ?: 0L) + 1L
+            log.append(
+                config.sessionId,
+                ChatMessage(
+                    id,
+                    fromUser = false,
+                    text = result.text,
+                    reasoning = result.reasoning,
+                    promptTokens = outcome.usage?.prompt ?: 0,
+                    cachedTokens = outcome.usage?.cached ?: 0,
+                    completionTokens = outcome.usage?.completion ?: 0,
+                    elapsedMs = outcome.elapsedMs,
+                    transcript = outcome.transcript,
+                ),
             )
         }
-        return TurnState(running = false, text = text, error = error?.takeUnless { it == CANCELED })
+        return result
     }
 
     private fun notification(): Notification {
@@ -231,7 +162,6 @@ class AgentService : Service() {
 
     companion object {
         const val ACTION_STOP = "dev.undefinedteam.wearagent.STOP"
-        private const val CANCELED = "canceled"
         private const val CHANNEL = "turns"
         private const val NOTIFICATION_ID = 1
     }

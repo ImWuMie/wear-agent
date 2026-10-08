@@ -31,6 +31,7 @@ data class AgentSettings(
     val sessionId: String = "",
     val endpointId: String = "",
     val endpoints: List<EndpointProfile> = emptyList(),
+    val webSearchEnabled: Boolean = false,
 ) {
     val active: EndpointProfile?
         get() = endpoints.firstOrNull { it.id == endpointId } ?: endpoints.firstOrNull()
@@ -45,6 +46,7 @@ class SettingsStore(private val context: Context) {
     private val imeSendKey = booleanPreferencesKey("ime_sends")
     private val curvedListKey = booleanPreferencesKey("curved_list")
     private val roundFitKey = booleanPreferencesKey("round_fit")
+    private val webSearchEnabledKey = booleanPreferencesKey("web_search_enabled")
     private val languageKey = stringPreferencesKey("language")
     private val sessionKey = stringPreferencesKey("session_id")
     private val endpointIdKey = stringPreferencesKey("endpoint_id")
@@ -83,6 +85,7 @@ class SettingsStore(private val context: Context) {
             endpointId = prefs[endpointIdKey].orEmpty()
                 .ifBlank { endpoints.firstOrNull()?.id.orEmpty() },
             endpoints = endpoints,
+            webSearchEnabled = prefs[webSearchEnabledKey] ?: false,
         )
     }
 
@@ -93,6 +96,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setCurvedList(value: Boolean) = edit { it[curvedListKey] = value }
 
     suspend fun setRoundFit(value: Boolean) = edit { it[roundFitKey] = value }
+
+    suspend fun setWebSearchEnabled(value: Boolean) = edit { it[webSearchEnabledKey] = value }
 
     suspend fun setLanguage(value: String) = edit { it[languageKey] = value }
 

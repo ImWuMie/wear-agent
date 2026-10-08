@@ -101,4 +101,7 @@ implementation(libs.lifecycle.runtime.compose)
     implementation(libs.jlatexmath.greek)
     implementation(libs.jlatexmath.cyrillic)
     implementation(libs.wear.remote.interactions)
+    testImplementation(libs.junit)
+    testImplementation(libs.mockwebserver)
+    testImplementation(libs.org.json)
 }

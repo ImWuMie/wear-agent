@@ -14,6 +14,8 @@ lifecycle = "2.9.4"
 commonmark = "0.24.0"
 jlatexmath = "0.2.0"
 wearRemoteInteractions = "1.2.0"
+junit = "4.13.2"
+orgJson = "20240303"
 
 [libraries]
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
@@ -38,6 +40,9 @@ jlatexmath = { group = "ru.noties", name = "jlatexmath-android", version.ref = "
 jlatexmath-greek = { group = "ru.noties", name = "jlatexmath-android-font-greek", version.ref = "jlatexmath" }
 jlatexmath-cyrillic = { group = "ru.noties", name = "jlatexmath-android-font-cyrillic", version.ref = "jlatexmath" }
 wear-remote-interactions = { group = "androidx.wear", name = "wear-remote-interactions", version.ref = "wearRemoteInteractions" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
+org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

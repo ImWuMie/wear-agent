@@ -42,6 +42,15 @@
     <string name="ime_send_now">输入法发送：直接发出</string>
     <string name="curved_list">圆屏缩放</string>
     <string name="round_fit">圆屏适配宽度</string>
+    <string name="tools">工具</string>
+    <string name="web_search">网页搜索</string>
+    <string name="web_search_privacy">默认关闭。开启后，模型可调用 Parallel 公共网页搜索，将搜索词发送给第三方 Parallel。无需额外密钥；搜索结果会随回复保存在本地会话中。</string>
+    <string name="search_running">正在搜索</string>
+    <string name="search_completed">搜索完成</string>
+    <string name="search_failed">搜索失败</string>
+    <string name="search_incomplete">搜索未完成</string>
+    <string name="search_show_results">展开结果</string>
+    <string name="search_hide_results">收起结果</string>
     <string name="endpoint">接口地址</string>
     <string name="model">模型</string>
     <string name="fetch_models">获取模型列表</string>
