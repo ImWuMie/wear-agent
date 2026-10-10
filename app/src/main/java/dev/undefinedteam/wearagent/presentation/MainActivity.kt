@@ -67,6 +67,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableFloatState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -109,6 +110,8 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.agent.AgentService
+import dev.undefinedteam.wearagent.agent.ToolActivity
+import dev.undefinedteam.wearagent.agent.TranscriptItem
 import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.presentation.theme.WearAgentTheme
 import dev.undefinedteam.wearagent.session.AgentSettings
@@ -123,6 +126,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
     private val turn = MutableStateFlow(TurnState())
@@ -768,18 +772,96 @@ private fun Handle(progression: Float, modifier: Modifier = Modifier) {
 @Composable
 private fun LiveBubble(state: TurnState, roundFit: Boolean = true) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
-        val body = state.text.ifBlank { state.error.orEmpty() }
-        if (body.isBlank()) {
-            Bubble(
-                ChatMessage(-1, fromUser = false, text = "", reasoning = state.reasoning),
-                roundFit = roundFit,
-                activeThinking = true
+        val completedError = !state.running && state.error != null
+        val body = if (completedError) state.error.orEmpty() else state.text
+        Bubble(
+            ChatMessage(-1, fromUser = false, text = body, reasoning = if (completedError) "" else state.reasoning),
+            roundFit = roundFit,
+            activeThinking = body.isBlank() && state.running && state.tools.none { it.result == null },
+            toolActivities = if (completedError) emptyList() else state.tools,
+            toolsRunning = state.running,
+        )
+    }
+}
+
+private fun transcriptTools(transcript: List<TranscriptItem>): List<ToolActivity> {
+    if (transcript.isEmpty()) return emptyList()
+    val results = transcript.filterIsInstance<TranscriptItem.ToolResult>().associateBy { it.callId }
+    return buildList {
+        transcript.forEach { item ->
+            if (item is TranscriptItem.Assistant) {
+                item.toolCalls.forEach { call ->
+                    val result = results[call.id]
+                    add(ToolActivity(call, result?.content, result?.isError ?: false))
+                }
+            }
+        }
+    }
+}
+
+/** Search activity is separate from both the assistant body and its reasoning. */
+@Composable
+private fun ToolActivities(tools: List<ToolActivity>, running: Boolean) {
+    tools.forEach { activity ->
+        key(activity.call.id) {
+            var expanded by remember { mutableStateOf(false) }
+            val query = remember(activity.call.arguments) {
+                runCatching { JSONObject(activity.call.arguments).optString("query") }
+                    .getOrDefault("")
+                    .ifBlank { activity.call.arguments }
+            }
+            val result = activity.result
+            val status = stringResource(
+                when {
+                    activity.isError -> R.string.search_failed
+                    result != null -> R.string.search_completed
+                    running -> R.string.search_running
+                    else -> R.string.search_incomplete
+                }
             )
-        } else {
-            Bubble(
-                ChatMessage(-1, fromUser = false, text = body, reasoning = state.reasoning),
-                roundFit = roundFit
+            val toggleLabel = stringResource(
+                if (expanded) R.string.search_hide_results else R.string.search_show_results
             )
+            Column(Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .clickable(enabled = result != null, onClickLabel = toggleLabel) {
+                            expanded = !expanded
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            if (activity.call.name == "web_search") {
+                                "${stringResource(R.string.web_search)} · $status"
+                            } else "${activity.call.name} · $status",
+                            color = if (activity.isError) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            query,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (result != null) Text(
+                        if (expanded) "▲" else "▼",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                AnimatedVisibility(visible = expanded && result != null) {
+                    SelectionContainer {
+                        MarkdownText(result.orEmpty(), Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
         }
     }
 }
@@ -888,10 +970,14 @@ private fun Bubble(
     roundFit: Boolean = true,
     activeThinking: Boolean = false,
     onLongPress: () -> Unit = {},
+    toolActivities: List<ToolActivity>? = null,
+    toolsRunning: Boolean = false,
 ) {
     val mine = message.fromUser
     val userMax = if (roundFit) 190.dp else 250.dp
     val aiMax = if (roundFit) 235.dp else 290.dp
+    val storedTools = remember(message.transcript) { transcriptTools(message.transcript) }
+    val tools = toolActivities ?: storedTools
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start
@@ -919,6 +1005,7 @@ private fun Bubble(
                 onLongPress = onLongPress,
             ) {
                 Column {
+                    if (tools.isNotEmpty()) ToolActivities(tools, toolsRunning)
                     if (message.reasoning.isNotBlank()) {
                         ThinkingBlock(
                             message.reasoning,

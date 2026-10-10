@@ -1,12 +1,14 @@
 package dev.undefinedteam.wearagent.session
 
 import android.content.Context
+import dev.undefinedteam.wearagent.agent.TranscriptCodec
 import org.json.JSONObject
 import java.io.File
 
 /**
  * One JSON object per line (JSONL):
  * `{"id":1,"role":"user","text":"...","reasoning":"","prompt":0,"cached":0,"completion":0,"ms":0}`.
+ * Assistant records may also include a protocol `transcript` array for tool/native replay.
  * Append-only; a killed process replays the file, nothing lives only in memory.
  * Legacy TSV `.txt` sessions are migrated to `.jsonl` on first access.
  */
@@ -59,7 +61,11 @@ class SessionLog(context: Context) {
     }
 
     fun editMessage(sessionId: String, messageId: Long, text: String) {
-        val changed = load(sessionId).map { if (it.id == messageId) it.copy(text = text) else it }
+        val changed = load(sessionId).map {
+            if (it.id == messageId) {
+                it.copy(text = text, transcript = if (it.fromUser) it.transcript else emptyList())
+            } else it
+        }
         write(sessionId, changed)
     }
 
@@ -106,6 +112,9 @@ class SessionLog(context: Context) {
         json.put("cached", message.cachedTokens)
         json.put("completion", message.completionTokens)
         json.put("ms", message.elapsedMs)
+        if (message.transcript.isNotEmpty()) {
+            json.put("transcript", TranscriptCodec.encode(message.transcript))
+        }
         return json.toString()
     }
 
@@ -120,6 +129,7 @@ class SessionLog(context: Context) {
             json.optInt("cached"),
             json.optInt("completion"),
             json.optLong("ms"),
+            TranscriptCodec.decode(json.optJSONArray("transcript")),
         )
     }.getOrNull()
 

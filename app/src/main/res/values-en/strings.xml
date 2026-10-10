@@ -43,6 +43,15 @@
     <string name="ime_send_now">IME send: send immediately</string>
     <string name="curved_list">Round-screen scaling</string>
     <string name="round_fit">Round-screen width fit</string>
+    <string name="tools">Tools</string>
+    <string name="web_search">Web search</string>
+    <string name="web_search_privacy">Off by default. When enabled, the model can use Parallel public web search, sending search queries to the third party Parallel. No additional API key is needed. Search results are saved locally with the reply in your session.</string>
+    <string name="search_running">Searching</string>
+    <string name="search_completed">Search completed</string>
+    <string name="search_failed">Search failed</string>
+    <string name="search_incomplete">Search incomplete</string>
+    <string name="search_show_results">Show results</string>
+    <string name="search_hide_results">Hide results</string>
     <string name="endpoint">Endpoint URL</string>
     <string name="model">Model</string>
     <string name="fetch_models">Fetch model list</string>

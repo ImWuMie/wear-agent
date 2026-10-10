@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -28,7 +29,9 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material3.MaterialTheme
@@ -76,7 +79,7 @@ private sealed interface Block {
     class Rich(val text: AnnotatedString, val inline: Map<String, String>) : Block
     class CodeBlock(val text: String) : Block
     class Formula(val source: String) : Block
-    class Table(val rows: List<List<String>>) : Block
+    class Table(val content: Rich) : Block
 }
 
 @Composable
@@ -85,36 +88,38 @@ fun MarkdownText(source: String, modifier: Modifier = Modifier) {
     Column(modifier) {
         blocks.forEach { block ->
             when (block) {
-                is Block.Rich -> {
-                    val inline = inlineContentFor(block.inline)
-                    Text(
-                        block.text,
-                        inlineContent = inline,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
+                is Block.Rich -> RichTextBlock(block, MaterialTheme.typography.bodyMedium)
 
                 is Block.CodeBlock -> CodeBlockSurface(block.text)
                 is Block.Formula -> FormulaImage(block.source)
-                is Block.Table -> Text(
-                    block.rows.joinToString("\n") { it.joinToString(" | ") },
-                    style = MaterialTheme.typography.bodySmall,
-                )
+                is Block.Table -> RichTextBlock(block.content, MaterialTheme.typography.bodySmall)
             }
         }
     }
 }
 
 /**
- * Builds the inline-content map for one rich block. Inline formulas are sized from their rendered
- * bitmap so they sit on the text baseline instead of breaking the line.
+ * Wear's fixed line height overrides tall inline placeholders. Use natural per-line metrics for
+ * math-bearing text: fractions get their full height, while ordinary lines stay compact.
+ */
+@Composable
+private fun RichTextBlock(block: Block.Rich, style: TextStyle) {
+    val inline = inlineContentFor(block.inline)
+    val mathStyle = if (inline.isEmpty()) style else {
+        style.copy(lineHeight = TextUnit.Unspecified, lineHeightStyle = null)
+    }
+    Text(block.text, inlineContent = inline, style = mathStyle)
+}
+
+/**
+ * Builds the inline-content map with bitmap-sized placeholders centered within each line.
  */
 @Composable
 private fun inlineContentFor(sources: Map<String, String>): Map<String, InlineTextContent> {
     if (sources.isEmpty()) return emptyMap()
     val density = LocalDensity.current
     val sizePx = with(density) { 15.sp.toPx() }
-    return remember(sources, sizePx) {
+    return remember(sources, sizePx, density) {
         sources.mapValues { (_, latex) ->
             val bitmap = renderFormula(latex, sizePx)
             if (bitmap != null) {
@@ -122,7 +127,7 @@ private fun inlineContentFor(sources: Map<String, String>): Map<String, InlineTe
                     Placeholder(
                         width = with(density) { bitmap.width.toSp() },
                         height = with(density) { bitmap.height.toSp() },
-                        placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+                        placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
                     ),
                 ) {
                     Image(
@@ -137,7 +142,7 @@ private fun inlineContentFor(sources: Map<String, String>): Map<String, InlineTe
                     Placeholder(
                         width = (latex.length.coerceIn(3, 24) * 7).sp,
                         height = 15.sp,
-                        placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+                        placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
                     ),
                 ) {
                     Text(latex, style = MaterialTheme.typography.bodySmall)
@@ -169,27 +174,29 @@ private fun CodeBlockSurface(code: String) {
 
 @Composable
 private fun FormulaImage(source: String) {
-    val size = with(LocalDensity.current) { 15.sp.toPx() }
-    // Render off the main thread; cache hits are synchronous.
-    val image by produceState<Bitmap?>(initialValue = formulaCache[source], source, size) {
-        value = if (value != null) value
-        else withContext(Dispatchers.Default) { renderFormula(source, size) }
-    }
-    val bitmap = image
-    if (bitmap == null) {
-        Text(
-            source,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodySmall,
-        )
-    } else {
-        Image(
-            bitmap.asImageBitmap(),
-            contentDescription = source,
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 2.dp),
-        )
+    val density = LocalDensity.current
+    val size = with(density) { 15.sp.toPx() }
+    // produceState otherwise retains the previous block's bitmap when streaming changes its source.
+    key(source, size) {
+        val image by produceState<Bitmap?>(initialValue = cachedFormula(source, size)) {
+            value = withContext(Dispatchers.Default) { renderFormula(source, size) }
+        }
+        val bitmap = image
+        if (bitmap == null) {
+            Text(
+                source,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            Image(
+                bitmap.asImageBitmap(),
+                contentDescription = source,
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 2.dp),
+            )
+        }
     }
 }
 
@@ -206,7 +213,8 @@ private fun extractMath(source: String): Pair<String, List<MathSpan>> {
     val spans = ArrayList<MathSpan>()
     val out = StringBuilder(source.length)
     var i = 0
-    var inFence = false
+    var fenceChar = '\u0000'
+    var fenceLength = 0
     var lineStart = true
 
     fun mark(span: MathSpan): String {
@@ -221,13 +229,37 @@ private fun extractMath(source: String): Pair<String, List<MathSpan>> {
     }
 
     while (i < source.length) {
-        if (lineStart && source.startsWith("```", i)) {
-            inFence = !inFence
-            copyVerbatim(i, i + 3)
-            lineStart = false
-            continue
+        if (lineStart) {
+            var start = i
+            while (start < source.length && start - i < 3 && source[start] == ' ') start++
+            val candidate = source.getOrNull(start)
+            if (candidate == '`' || candidate == '~') {
+                var end = start
+                while (end < source.length && source[end] == candidate) end++
+                val length = end - start
+                if (length >= 3) {
+                    val lineEnd = source.indexOf('\n', end).let { if (it == -1) source.length else it }
+                    var blankTail = true
+                    var containsBacktick = false
+                    for (position in end until lineEnd) {
+                        if (!source[position].isWhitespace()) blankTail = false
+                        if (source[position] == '`') containsBacktick = true
+                    }
+                    if (fenceLength == 0 && (candidate == '~' || !containsBacktick)) {
+                        fenceChar = candidate
+                        fenceLength = length
+                    } else if (candidate == fenceChar && length >= fenceLength && blankTail) {
+                        fenceLength = 0
+                    }
+                    if (fenceLength != 0 || candidate == fenceChar) {
+                        copyVerbatim(i, if (lineEnd < source.length) lineEnd + 1 else lineEnd)
+                        lineStart = true
+                        continue
+                    }
+                }
+            }
         }
-        if (inFence) {
+        if (fenceLength != 0) {
             val nl = source.indexOf('\n', i)
             val end = if (nl == -1) source.length else nl + 1
             copyVerbatim(i, end)
@@ -237,15 +269,21 @@ private fun extractMath(source: String): Pair<String, List<MathSpan>> {
         val c = source[i]
         val escaped = i > 0 && source[i - 1] == '\\' && !(i > 1 && source[i - 2] == '\\')
 
-        // Inline code span: `...`, ``...``
+        // CommonMark code spans close with a backtick run of exactly the opening length.
         if (c == '`') {
-            val ticks = if (source.startsWith("``", i)) 2 else 1
-            val close = source.indexOf("`".repeat(ticks), i + ticks)
-            if (close > 0) {
-                copyVerbatim(i, close + ticks)
-                lineStart = false
-                continue
+            var end = i + 1
+            while (end < source.length && source[end] == '`') end++
+            val ticks = end - i
+            var close = source.indexOf('`', end)
+            while (close >= 0) {
+                var closeEnd = close + 1
+                while (closeEnd < source.length && source[closeEnd] == '`') closeEnd++
+                if (closeEnd - close == ticks) break
+                close = source.indexOf('`', closeEnd)
             }
+            copyVerbatim(i, if (close >= 0) close + ticks else end)
+            lineStart = source.getOrNull(i - 1) == '\n'
+            continue
         }
 
         when {
@@ -365,10 +403,13 @@ private fun parse(source: String): List<Block> {
         override fun visit(block: FencedCodeBlock) {
             val info = block.info?.trim()?.lowercase()
             val text = block.literal.trim()
+            // An explicit non-math language denotes literal code, even when it contains delimiters.
             val looksMath = info in setOf("math", "latex", "tex", "formula") ||
-                    text.startsWith("\\begin{") ||
-                    text.startsWith("\\[") ||
-                    text.startsWith("$$")
+                    (info.isNullOrBlank() && (
+                        text.startsWith("\\begin{") ||
+                        text.startsWith("\\[") ||
+                        text.startsWith("$$")
+                    ))
             if (looksMath) {
                 blocks.add(Block.Formula(stripMathDelimiters(text)))
             } else {
@@ -394,19 +435,31 @@ private fun parse(source: String): List<Block> {
 
         override fun visit(custom: org.commonmark.node.CustomBlock) {
             val table = custom as? TableBlock ?: return
-            val rows = ArrayList<List<String>>()
-            var row = table.firstChild
-            while (row != null) {
-                val cells = ArrayList<String>()
-                var cell = row.firstChild
-                while (cell != null) {
-                    cells.add(plain(cell, spans))
-                    cell = cell.next
+            val inline = LinkedHashMap<String, String>()
+            val text = buildAnnotatedString {
+                var section = table.firstChild
+                var firstRow = true
+                while (section != null) {
+                    var row = section.firstChild
+                    while (row != null) {
+                        if (!firstRow) append('\n')
+                        firstRow = false
+                        var cell = row.firstChild
+                        var firstCell = true
+                        while (cell != null) {
+                            if (!firstCell) append(" | ")
+                            firstCell = false
+                            val rich = textOf(cell, spans)
+                            append(rich.text)
+                            inline.putAll(rich.inline)
+                            cell = cell.next
+                        }
+                        row = row.next
+                    }
+                    section = section.next
                 }
-                if (cells.isNotEmpty()) rows.add(cells)
-                row = row.next
             }
-            blocks.add(Block.Table(rows))
+            blocks.add(Block.Table(Block.Rich(text, inline)))
         }
 
         private fun addMixed(rich: Block.Rich) {
@@ -428,21 +481,39 @@ private fun parse(source: String): List<Block> {
     return blocks.ifEmpty { listOf(Block.Rich(AnnotatedString(source), emptyMap())) }
 }
 
-/** Splits one rich block at block-level math markers; inline markers already became placeholders. */
+/**
+ * Splits at block math markers, keeping only each slice's referenced inline formulas.
+ * Newlines adjoining display math separate blocks; retaining them would add empty text lines.
+ */
 private fun splitBlocks(rich: Block.Rich, spans: List<MathSpan>): List<Block> {
     val out = ArrayList<Block>()
     var cursor = 0
+    fun addText(start: Int, end: Int) {
+        var from = start
+        var to = end
+        while (from < to && rich.text[from] == '\n') from++
+        while (to > from && rich.text[to - 1] == '\n') to--
+        if (from == to) return
+        val text = rich.text.subSequence(from, to)
+        val inline = buildMap {
+            text.getStringAnnotations(0, text.length).forEach { annotation ->
+                rich.inline[annotation.item]?.let { put(annotation.item, it) }
+            }
+        }
+        out.add(Block.Rich(text, inline))
+    }
     markerPattern.findAll(rich.text.text).forEach { match ->
         val span = spans.getOrNull(match.groupValues[1].toIntOrNull() ?: return@forEach) ?: return@forEach
         if (!span.block) return@forEach
         if (match.range.first > cursor) {
-            out.add(Block.Rich(rich.text.subSequence(cursor, match.range.first), rich.inline))
+            addText(cursor, match.range.first)
         }
         out.add(Block.Formula(span.source))
         cursor = match.range.last + 1
     }
-    if (cursor < rich.text.length) out.add(Block.Rich(rich.text.subSequence(cursor, rich.text.length), rich.inline))
-    return out.ifEmpty { listOf(rich) }
+    if (cursor == 0) return listOf(rich)
+    if (cursor < rich.text.length) addText(cursor, rich.text.length)
+    return out
 }
 
 private fun textOf(node: Node, spans: List<MathSpan>): Block.Rich {
@@ -506,40 +577,14 @@ private fun AnnotatedString.Builder.styled(value: String, style: SpanStyle) {
     addStyle(style, start, length)
 }
 
-private fun plain(node: Node, spans: List<MathSpan>): String {
-    val out = StringBuilder()
-    node.accept(object : AbstractVisitor() {
-        override fun visit(text: org.commonmark.node.Text) {
-            var cursor = 0
-            markerPattern.findAll(text.literal).forEach { match ->
-                if (match.range.first > cursor) out.append(text.literal, cursor, match.range.first)
-                val span = spans.getOrNull(match.groupValues[1].toIntOrNull() ?: -1)
-                if (span != null) out.append('$').append(span.source).append('$') else out.append(match.value)
-                cursor = match.range.last + 1
-            }
-            if (cursor < text.literal.length) out.append(text.literal, cursor, text.literal.length)
-        }
 
-        override fun visit(code: Code) {
-            out.append(code.literal)
-        }
+private data class FormulaKey(val source: String, val size: Float)
 
-        override fun visit(soft: SoftLineBreak) {
-            out.append('\n')
-        }
+private val formulaCache = HashMap<FormulaKey, Bitmap?>()
 
-        override fun visit(hard: org.commonmark.node.HardLineBreak) {
-            out.append('\n')
-        }
-
-        override fun visit(custom: org.commonmark.node.CustomNode) {
-            if (custom !is TableCell) visitChildren(custom)
-        }
-    })
-    return out.toString().trim()
+private fun cachedFormula(source: String, size: Float): Bitmap? = synchronized(formulaCache) {
+    formulaCache[FormulaKey(source, size)]
 }
-
-private val formulaCache = HashMap<String, Bitmap?>()
 
 /** Rewrites LaTeX this jlatexmath fork cannot parse (amsmath envs, \LaTeX) into equivalents. */
 private fun normalizeFormula(source: String): String {
@@ -563,7 +608,8 @@ private fun normalizeFormula(source: String): String {
 }
 
 private fun renderFormula(source: String, size: Float): Bitmap? = synchronized(formulaCache) {
-    if (formulaCache.containsKey(source)) return formulaCache[source]
+    val cacheKey = FormulaKey(source, size)
+    if (formulaCache.containsKey(cacheKey)) return formulaCache[cacheKey]
     val bitmap = try {
         val drawable = JLatexMathDrawable.builder(normalizeFormula(source))
             .textSize(size)
@@ -579,6 +625,6 @@ private fun renderFormula(source: String, size: Float): Bitmap? = synchronized(f
     } catch (_: Throwable) {
         null
     }
-    formulaCache[source] = bitmap
+    formulaCache[cacheKey] = bitmap
     bitmap
 }
