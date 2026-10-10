@@ -18,7 +18,7 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.agent.ChatProvider
-import dev.undefinedteam.wearagent.agent.ChatRequest
+import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.presentation.settings.SettingRow
 import dev.undefinedteam.wearagent.presentation.settings.SettingsPage
 import dev.undefinedteam.wearagent.presentation.settings.SettingsPageScope
@@ -174,7 +174,7 @@ private fun SettingsPageScope.fetchModels(editor: EndpointEditorState) {
                 ?: error("no endpoint")
             val models = withContext(Dispatchers.IO) {
                 ChatProvider(target.kind).models(
-                    ChatRequest(target.endpoint, target.model, target.apiKey)
+                    ModelRequest(target.endpoint, target.model, target.apiKey)
                 )
             }
             editor.models = models

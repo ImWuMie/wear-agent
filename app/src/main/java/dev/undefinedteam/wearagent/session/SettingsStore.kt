@@ -52,30 +52,9 @@ class SettingsStore(private val context: Context) {
     private val sessionKey = stringPreferencesKey("session_id")
     private val endpointIdKey = stringPreferencesKey("endpoint_id")
     private val endpointsKey = stringPreferencesKey("endpoints")
-    private val endpointKindKey = stringPreferencesKey("api_kind")
-    private val endpointKey = stringPreferencesKey("endpoint")
-    private val modelKey = stringPreferencesKey("model")
-    private val apiKeyKey = stringPreferencesKey("api_key")
 
     val settings: Flow<AgentSettings> = context.settingsDataStore.data.map { prefs ->
-        val stored = decode(prefs[endpointsKey].orEmpty())
-        val endpoints = stored.ifEmpty {
-            val legacy = prefs[endpointKey].orEmpty()
-            if (legacy.isBlank() && prefs[modelKey].isNullOrBlank()) {
-                emptyList()
-            } else {
-                listOf(
-                    EndpointProfile(
-                        "legacy",
-                        legacy,
-                        EndpointKind.from(prefs[endpointKindKey]),
-                        legacy,
-                        prefs[modelKey].orEmpty(),
-                        prefs[apiKeyKey].orEmpty()
-                    )
-                )
-            }
-        }
+        val endpoints = decode(prefs[endpointsKey].orEmpty())
         AgentSettings(
             inputMode = InputMode.fromStored(prefs[inputModeKey]),
             imeSends = prefs[imeSendKey] ?: true,

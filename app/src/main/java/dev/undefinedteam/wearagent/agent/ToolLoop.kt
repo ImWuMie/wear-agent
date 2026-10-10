@@ -29,7 +29,7 @@ class ToolLoop(
     data class Outcome(
         val state: TurnState,
         val transcript: List<TranscriptItem>,
-        val tokens: Tokens?,
+        val tokens: TokensUsage?,
         val elapsedMs: Long,
         val canceled: Boolean,
     )
@@ -73,7 +73,7 @@ class ToolLoop(
                 tools = activities,
             ),
             transcript = transcript.toList(),
-            tokens = if (hasUsage) Tokens(prompt, cached, completion) else null,
+            tokens = if (hasUsage) TokensUsage(prompt, cached, completion) else null,
             elapsedMs = elapsedMs,
             canceled = canceled.get(),
         )
@@ -88,7 +88,7 @@ class ToolLoop(
             } else emptyList()
             val outcome = try {
                 client.stream(
-                    ChatRequest(
+                    ModelRequest(
                         endpoint = settings.endpoint,
                         model = settings.model,
                         apiKey = settings.apiKey,

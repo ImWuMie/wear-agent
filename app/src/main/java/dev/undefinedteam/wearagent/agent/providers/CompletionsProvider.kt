@@ -1,11 +1,11 @@
 package dev.undefinedteam.wearagent.agent.providers
 
-import dev.undefinedteam.wearagent.agent.ChatRequest
+import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.EndpointKind
 import dev.undefinedteam.wearagent.agent.Message
 import dev.undefinedteam.wearagent.agent.MessageDelta
 import dev.undefinedteam.wearagent.agent.SseChatClient
-import dev.undefinedteam.wearagent.agent.Tokens
+import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.agent.TranscriptItem
@@ -15,15 +15,15 @@ import java.io.IOException
 
 /** OpenAI-compatible chat/completions protocol. */
 class CompletionsProvider : SseChatClient() {
-    override fun chatUrl(request: ChatRequest): String {
+    override fun chatUrl(request: ModelRequest): String {
         val base = request.endpoint.trim().trimEnd('/')
         return if (base.endsWith(SUFFIX)) base else base + SUFFIX
     }
 
-    override fun authHeaders(request: ChatRequest) = listOf("Authorization" to "Bearer ${request.apiKey}")
+    override fun authHeaders(request: ModelRequest) = listOf("Authorization" to "Bearer ${request.apiKey}")
 
     override fun requestBody(
-        request: ChatRequest,
+        request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
     ): String {
@@ -50,7 +50,7 @@ class CompletionsProvider : SseChatClient() {
         return root.toString()
     }
 
-    override fun modelUrls(request: ChatRequest): List<String> {
+    override fun modelUrls(request: ModelRequest): List<String> {
         val base = request.endpoint.trim().trimEnd('/')
         if (base.isBlank()) return emptyList()
         val root = if (base.endsWith(SUFFIX)) base.removeSuffix(SUFFIX) else base
@@ -109,7 +109,7 @@ class CompletionsProvider : SseChatClient() {
     private class CompletionsState(private val onDelta: (MessageDelta) -> Unit) : StreamState {
         private val calls = sortedMapOf<Int, JSONObject>()
         private val native = JSONObject()
-        private var usage: Tokens? = null
+        private var usage: TokensUsage? = null
         private var finished = false
         private var incompleteTools = false
 
@@ -123,7 +123,7 @@ class CompletionsProvider : SseChatClient() {
 
         override fun accept(event: JSONObject) {
             event.optJSONObject("usage")?.let { value ->
-                usage = Tokens(
+                usage = TokensUsage(
                     value.optInt("prompt_tokens"),
                     value.optJSONObject("prompt_tokens_details")?.optInt("cached_tokens")
                         ?: value.optInt("cached_tokens"),

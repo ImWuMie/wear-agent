@@ -58,14 +58,14 @@ abstract class SseChatClient : ChatProvider {
     }
 
     /** Chat endpoint URL (with protocol suffix appended if missing). */
-    protected abstract fun chatUrl(request: ChatRequest): String
+    protected abstract fun chatUrl(request: ModelRequest): String
 
     /** Auth/protocol headers for the chat request. */
-    protected abstract fun authHeaders(request: ChatRequest): List<Pair<String, String>>
+    protected abstract fun authHeaders(request: ModelRequest): List<Pair<String, String>>
 
     /** Request body for one round. */
     protected abstract fun requestBody(
-        request: ChatRequest,
+        request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
     ): String
@@ -74,10 +74,10 @@ abstract class SseChatClient : ChatProvider {
     protected abstract fun newState(onDelta: (MessageDelta) -> Unit): StreamState
 
     /** Candidate /models URLs to try in order. */
-    protected abstract fun modelUrls(request: ChatRequest): List<String>
+    protected abstract fun modelUrls(request: ModelRequest): List<String>
 
     override fun stream(
-        request: ChatRequest,
+        request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
         onDelta: (MessageDelta) -> Unit,
@@ -157,7 +157,7 @@ abstract class SseChatClient : ChatProvider {
     }
 
     private fun chatRequest(
-        request: ChatRequest,
+        request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
     ): Request {
@@ -169,7 +169,7 @@ abstract class SseChatClient : ChatProvider {
         return builder.build()
     }
 
-    override fun models(request: ChatRequest): List<String> {
+    override fun models(request: ModelRequest): List<String> {
         var lastError: Exception? = null
         for (url in modelUrls(request)) {
             try {
@@ -181,7 +181,7 @@ abstract class SseChatClient : ChatProvider {
         throw lastError ?: IOException("models endpoint not found")
     }
 
-    private fun fetchModels(url: String, request: ChatRequest): List<String> {
+    private fun fetchModels(url: String, request: ModelRequest): List<String> {
         val builder = Request.Builder().url(url).get()
         authHeaders(request).forEach { (name, value) -> builder.header(name, value) }
         quickHttp.newCall(builder.build()).execute().use { response ->

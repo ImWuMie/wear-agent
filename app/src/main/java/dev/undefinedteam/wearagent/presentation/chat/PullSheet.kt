@@ -39,12 +39,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -55,6 +58,7 @@ import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.InputMode
 import dev.undefinedteam.wearagent.session.SettingsStore
+import dev.undefinedteam.wearagent.session.VoiceState
 import kotlinx.coroutines.flow.MutableStateFlow
 
 @Composable
@@ -64,9 +68,12 @@ internal fun PullSheet(
     configStop: Float,
     settings: SettingsStore,
     turn: MutableStateFlow<TurnState>,
+    voiceState: MutableStateFlow<VoiceState>,
+    voicePartial: MutableStateFlow<String>,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
-    onVoice: () -> Unit,
+    onVoicePress: () -> Unit,
+    onVoiceRelease: () -> Unit,
     onOpenSettings: () -> Unit,
     stage: Int,
     onRelease: () -> Unit,
@@ -142,9 +149,12 @@ internal fun PullSheet(
                     settingsHeight,
                     settings,
                     turn,
+                    voiceState,
+                    voicePartial,
                     onSend,
                     onStop,
-                    onVoice,
+                    onVoicePress,
+                    onVoiceRelease,
                     onOpenSettings
                 )
             }
@@ -160,13 +170,18 @@ private fun SheetStack(
     settingsHeight: Dp,
     settings: SettingsStore,
     turn: MutableStateFlow<TurnState>,
+    voiceState: MutableStateFlow<VoiceState>,
+    voicePartial: MutableStateFlow<String>,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
-    onVoice: () -> Unit,
+    onVoicePress: () -> Unit,
+    onVoiceRelease: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val current by settings.settings.collectAsStateWithLifecycle(AgentSettings())
     val running = turn.collectAsStateWithLifecycle().value.running
+    val voice by voiceState.collectAsStateWithLifecycle()
+    val partial by voicePartial.collectAsStateWithLifecycle()
     var draft by remember { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
@@ -196,7 +211,7 @@ private fun SheetStack(
             ) {
                 Box(Modifier.weight(1f)) {
                     if (current.inputMode == InputMode.VOICE && !running) {
-                        SheetRow(stringResource(R.string.hold_to_talk), onClick = onVoice)
+                        VoiceRow(voice, partial, onVoicePress, onVoiceRelease)
                     } else {
                         DraftField(
                             draft,
@@ -261,6 +276,63 @@ private fun ActionButton(running: Boolean, modifier: Modifier = Modifier, onClic
                 style = MaterialTheme.typography.titleMedium,
             )
         }
+    }
+}
+
+/** Voice capture row: press-and-hold to record; live partial transcript while held. */
+@Composable
+private fun VoiceRow(
+    state: VoiceState,
+    partial: String,
+    onPress: () -> Unit,
+    onRelease: () -> Unit,
+) {
+    val scheme = MaterialTheme.colorScheme
+    val active = state == VoiceState.LISTENING
+    val label = when {
+        state == VoiceState.ERROR -> stringResource(R.string.voice_no_speech)
+        active && partial.isNotBlank() -> partial
+        active -> stringResource(R.string.voice_listening)
+        else -> stringResource(R.string.hold_to_talk)
+    }
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                when {
+                    state == VoiceState.ERROR -> scheme.errorContainer
+                    active -> scheme.secondaryContainer
+                    else -> Color.Transparent
+                }
+            )
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onPress = {
+                        onPress()
+                        try {
+                            awaitRelease()
+                        } finally {
+                            onRelease()
+                        }
+                    }
+                )
+            }
+            .padding(horizontal = 14.dp, vertical = 9.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Text(
+            label,
+            Modifier.fillMaxWidth(),
+            color = when {
+                state == VoiceState.ERROR -> scheme.onErrorContainer
+                active -> scheme.onSecondaryContainer
+                else -> scheme.onSurface
+            },
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

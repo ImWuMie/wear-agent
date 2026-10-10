@@ -2,7 +2,7 @@ package dev.undefinedteam.wearagent.session
 
 enum class InputMode {
     KEYBOARD,
-    VOICE // todo,
+    VOICE,
     ;
 
     companion object {

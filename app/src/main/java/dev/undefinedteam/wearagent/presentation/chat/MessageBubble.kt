@@ -7,7 +7,6 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,6 +51,7 @@ import androidx.wear.compose.material3.lazy.transformedHeight
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.agent.ToolActivity
 import dev.undefinedteam.wearagent.agent.TranscriptItem
+import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.presentation.markdown.MarkdownText
 import dev.undefinedteam.wearagent.session.ChatMessage
@@ -61,8 +61,7 @@ import org.json.JSONObject
 internal fun CurvedMessages(
     messages: List<ChatMessage>,
     turnState: TurnState,
-    selected: Long?,
-    onSelect: (Long) -> Unit,
+    onSelect: (ChatMessage) -> Unit,
     roundFit: Boolean = true,
 ) {
     val state = rememberTransformingLazyColumnState()
@@ -87,7 +86,7 @@ internal fun CurvedMessages(
                         .transformedHeight(this, spec)
                         .graphicsLayer { with(itemTransformation) { applyContainerTransformation() } },
                 ) {
-                    Bubble(message, roundFit = roundFit, onLongPress = { onSelect(message.id) })
+                    Bubble(message, roundFit = roundFit, onLongPress = { onSelect(message) })
                 }
             }
             if (turnState.live) item {
@@ -104,7 +103,7 @@ internal fun LiveBubble(state: TurnState, roundFit: Boolean = true) {
         Bubble(
             ChatMessage(
                 -1,
-                fromUser = false,
+                userMessage = false,
                 text = body,
                 reasoning = if (state.failed) "" else state.reasoning
             ),
@@ -133,7 +132,11 @@ private fun transcriptTools(transcript: List<TranscriptItem>): List<ToolActivity
 
 /** Search activity is separate from both the assistant body and its reasoning. */
 @Composable
-private fun ToolActivities(tools: List<ToolActivity>, running: Boolean) {
+private fun ToolActivities(
+    tools: List<ToolActivity>,
+    running: Boolean,
+    onLongPress: () -> Unit = {},
+) {
     tools.forEach { activity ->
         key(activity.call.id) {
             var expanded by remember { mutableStateOf(false) }
@@ -162,7 +165,11 @@ private fun ToolActivities(tools: List<ToolActivity>, running: Boolean) {
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                        .clickable(enabled = result != null, onClickLabel = toggleLabel) {
+                        .combinedClickable(
+                            enabled = result != null,
+                            onClickLabel = toggleLabel,
+                            onLongClick = onLongPress,
+                        ) {
                             expanded = !expanded
                         }
                         .padding(horizontal = 10.dp, vertical = 6.dp),
@@ -206,7 +213,8 @@ private fun ThinkingBlock(
     reasoning: String,
     hasBody: Boolean,
     roundFit: Boolean = true,
-    active: Boolean = false
+    active: Boolean = false,
+    onLongPress: () -> Unit = {},
 ) {
     var userToggled by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(!hasBody) }
@@ -224,10 +232,13 @@ private fun ThinkingBlock(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .clickable {
-                    userToggled = true
-                    expanded = !expanded
-                }
+                .combinedClickable(
+                    onClick = {
+                        userToggled = true
+                        expanded = !expanded
+                    },
+                    onLongClick = onLongPress,
+                )
                 .padding(horizontal = 10.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -307,7 +318,7 @@ internal fun Bubble(
     toolActivities: List<ToolActivity>? = null,
     toolsRunning: Boolean = false,
 ) {
-    val mine = message.fromUser
+    val mine = message.userMessage
     val userMax = if (roundFit) 190.dp else 250.dp
     val aiMax = if (roundFit) 235.dp else 290.dp
     val storedTools = remember(message.transcript) { transcriptTools(message.transcript) }
@@ -339,18 +350,19 @@ internal fun Bubble(
                 onLongPress = onLongPress,
             ) {
                 Column {
-                    if (tools.isNotEmpty()) ToolActivities(tools, toolsRunning)
+                    if (tools.isNotEmpty()) ToolActivities(tools, toolsRunning, onLongPress)
                     if (message.reasoning.isNotBlank()) {
                         ThinkingBlock(
                             message.reasoning,
                             hasBody = message.text.isNotBlank(),
                             roundFit = roundFit,
-                            active = activeThinking
+                            active = activeThinking,
+                            onLongPress = onLongPress,
                         )
                     }
                     if (message.text.isNotBlank()) MarkdownText(message.text)
                     if (activeThinking && message.reasoning.isBlank()) ThinkingDots()
-                    if (!message.fromUser && message.completionTokens > 0) UsageLine(message)
+                    if (!message.userMessage) message.tokens?.let { UsageLine(it, message.elapsedMs) }
                 }
             }
         }
@@ -358,18 +370,18 @@ internal fun Bubble(
 }
 
 @Composable
-private fun UsageLine(message: ChatMessage) {
+private fun UsageLine(tokens: TokensUsage, elapsedMs: Long) {
     val tps =
-        if (message.elapsedMs > 0) message.completionTokens * 1000f / message.elapsedMs else 0f
+        if (elapsedMs > 0) tokens.completion * 1000f / elapsedMs else 0f
 
     fun short(n: Int): String = when {
         n >= 1000 -> "${"%.1f".format(n / 1000f)}k"
         else -> n.toString()
     }
 
-    val cached = if (message.cachedTokens > 0) " (${short(message.cachedTokens)} ch)" else ""
+    val cached = if (tokens.cached > 0) " (${short(tokens.cached)} ch)" else ""
     Text(
-        "↓ ${short(message.completionTokens)}t, ↑ ${short(message.promptTokens)}t$cached · ${
+        "↓ ${short(tokens.completion)}t, ↑ ${short(tokens.prompt)}t$cached · ${
             "%.1f".format(
                 tps
             )

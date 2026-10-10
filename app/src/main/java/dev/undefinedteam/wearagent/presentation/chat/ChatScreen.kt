@@ -46,6 +46,8 @@ import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
+import dev.undefinedteam.wearagent.session.VoiceState
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -57,9 +59,12 @@ fun ChatScreen(
     settings: SettingsStore,
     turn: MutableStateFlow<TurnState>,
     sent: MutableStateFlow<List<ChatMessage>>,
+    voiceState: MutableStateFlow<VoiceState>,
+    voicePartial: MutableStateFlow<String>,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
-    onVoice: () -> Unit,
+    onVoicePress: () -> Unit,
+    onVoiceRelease: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -68,16 +73,40 @@ fun ChatScreen(
     val pull = remember { mutableFloatStateOf(0f) }
     var stage by remember { mutableStateOf(0) }
     val columnState = rememberLazyListState()
-    var selected by remember { mutableStateOf<Long?>(null) }
     var editing by remember { mutableStateOf<ChatMessage?>(null) }
+    var sheetMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var sheetVisible by remember { mutableStateOf(false) }
+    var sheetWipe by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
+    val turnState by turn.collectAsStateWithLifecycle()
     val sessionId = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.sessionId
+
+    // The service appends the finished assistant message to the log; `sent` only
+    // tracks sends, so it goes stale after every turn. Refresh it when a turn
+    // settles — otherwise deleting that fresh assistant message writes a list
+    // equal to the stale value and nothing recomposes (StateFlow conflates by
+    // equality, so the message would linger on screen).
+    LaunchedEffect(turnState.running, sessionId) {
+        if (!turnState.running) sent.value = log.load(sessionId)
+    }
+
+    fun openSheet(message: ChatMessage) {
+        sheetWipe?.cancel()
+        sheetMessage = message
+        sheetVisible = true
+    }
+
+    val dismissSheet: () -> Unit = {
+        sheetVisible = false
+        sheetWipe?.cancel()
+        sheetWipe = scope.launch { delay(150); sheetMessage = null }
+    }
     Box(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        MessageList(log, settings, turn, sent, columnState, selected, { selected = it })
+        MessageList(log, settings, turn, sent, columnState, { openSheet(it) })
         if (editing != null) {
             EditMessageDialog(
                 editing!!,
@@ -89,35 +118,16 @@ fun ChatScreen(
                 },
             )
         }
-        PullSheet(pull, inputStop, configStop, settings, turn, {
+        PullSheet(pull, inputStop, configStop, settings, turn, voiceState, voicePartial, {
             onSend(it)
             pull.floatValue = 0f
             stage = 0
-        }, onStop, onVoice, {
+        }, onStop, onVoicePress, onVoiceRelease, {
             pull.floatValue = 0f
             stage = 0
             onOpenSettings()
         }, stage, { stage = snapPull(pull, stage, inputStop, configStop) })
-
-        val selectedMessage = run {
-            val persisted =
-                sent.collectAsStateWithLifecycle(initialValue = emptyList<ChatMessage>())
-            val turnState = turn.collectAsStateWithLifecycle()
-            remember(selected, persisted.value, turnState.value.running) {
-                if (turnState.value.running) null
-                else log.load(sessionId).firstOrNull { it.id == selected }
-                    ?: persisted.value.firstOrNull { it.id == selected }
-            }
-        }
-        var sheetVisible by remember { mutableStateOf(false) }
-        LaunchedEffect(selectedMessage) {
-            if (selectedMessage != null) sheetVisible = true
-        }
-        val dismissSheet: () -> Unit = {
-            sheetVisible = false
-            scope.launch { delay(150); selected = null }
-        }
-        if (selectedMessage != null) {
+        if (sheetMessage != null) {
             AnimatedVisibility(
                 visible = sheetVisible,
                 enter = scaleIn(
@@ -130,7 +140,7 @@ fun ChatScreen(
                 ) + fadeOut(tween(140)),
             ) {
                 MessageActionSheet(
-                    selectedMessage,
+                    sheetMessage!!,
                     onDismiss = dismissSheet,
                     onDelete = { id ->
                         log.deleteMessage(sessionId, id)
@@ -138,7 +148,7 @@ fun ChatScreen(
                         dismissSheet()
                     },
                     onRegenerate = { id ->
-                        val isUser = selectedMessage.fromUser
+                        val isUser = sheetMessage!!.userMessage
                         if (isUser) log.truncateAfter(
                             sessionId,
                             id
@@ -167,8 +177,7 @@ private fun MessageList(
     turn: MutableStateFlow<TurnState>,
     sent: MutableStateFlow<List<ChatMessage>>,
     columnState: LazyListState,
-    selected: Long?,
-    onSelect: (Long) -> Unit,
+    onSelect: (ChatMessage) -> Unit,
 ) {
     val persisted by sent.collectAsStateWithLifecycle(initialValue = emptyList())
     val turnState by turn.collectAsStateWithLifecycle()
@@ -184,7 +193,7 @@ private fun MessageList(
         return
     }
     if (curved) {
-        CurvedMessages(messages, turnState, selected, onSelect, roundFit)
+        CurvedMessages(messages, turnState, onSelect, roundFit)
         return
     }
     LaunchedEffect(messages.size, turnState.running) {
@@ -199,7 +208,7 @@ private fun MessageList(
     ) {
         items(messages, key = { it.id }) { message ->
             Column {
-                Bubble(message, roundFit = roundFit, onLongPress = { onSelect(message.id) })
+                Bubble(message, roundFit = roundFit, onLongPress = { onSelect(message) })
             }
         }
         if (turnState.live) item { LiveBubble(turnState, roundFit) }

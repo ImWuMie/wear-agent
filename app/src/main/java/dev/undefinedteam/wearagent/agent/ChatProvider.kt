@@ -5,19 +5,19 @@ import dev.undefinedteam.wearagent.agent.providers.CompletionsProvider
 import dev.undefinedteam.wearagent.agent.providers.ResponsesProvider
 
 /** Minimal per-request config; a provider only ever needs these three. */
-data class ChatRequest(val endpoint: String, val model: String, val apiKey: String)
+data class ModelRequest(val endpoint: String, val model: String, val apiKey: String)
 
 /** One streamed increment; a single event may carry both text and reasoning. */
 data class MessageDelta(val text: String = "", val reasoning: String = "")
 
 /** Token accounting for one model round. */
-data class Tokens(val prompt: Int, val cached: Int, val completion: Int)
+data class TokensUsage(val prompt: Int, val cached: Int, val completion: Int)
 
 /** One completed model round: content, reasoning, usage, and any tool calls. */
 data class Message(
     val text: String = "",
     val reasoning: String = "",
-    val tokens: Tokens? = null,
+    val tokens: TokensUsage? = null,
     val elapsedMs: Long = 0,
     val toolCalls: List<ToolCall> = emptyList(),
     /** Provider-native replay payload (opaque, protocol-specific). */
@@ -47,14 +47,14 @@ interface ChatProvider {
      * [java.io.IOException] on transport/protocol failure or cancellation.
      */
     fun stream(
-        request: ChatRequest,
+        request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition> = emptyList(),
         onDelta: (MessageDelta) -> Unit = {},
     ): Message
 
     /** Lists model ids available at the endpoint. */
-    fun models(request: ChatRequest): List<String>
+    fun models(request: ModelRequest): List<String>
 
     /** Cancels the in-flight stream; subsequent/ongoing calls abort. */
     fun cancel()

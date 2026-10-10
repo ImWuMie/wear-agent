@@ -5,6 +5,8 @@
     <string name="hero_subtitle">上拉输入，向模型提问</string>
     <string name="send">发送</string>
     <string name="hold_to_talk">按住说</string>
+    <string name="voice_listening">聆听中…</string>
+    <string name="voice_no_speech">未检测到语音</string>
     <string name="stop">停止</string>
     <string name="thinking">思考内容</string>
     <string name="thinking_active">正在思考</string>

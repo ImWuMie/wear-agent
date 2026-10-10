@@ -42,7 +42,7 @@ class ToolLoopTest {
 
                 assertFalse(result.canceled)
                 assertFalse(result.state.running)
-                assertEquals(Tokens(30, 6, 8), result.tokens)
+                assertEquals(TokensUsage(30, 6, 8), result.tokens)
                 assertEquals(2, search.requestCount)
                 assertEquals(2, model.requestCount)
                 val toolResults = result.transcript.filterIsInstance<TranscriptItem.ToolResult>()

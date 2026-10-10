@@ -1,9 +1,9 @@
 package dev.undefinedteam.wearagent.agent.providers
 
 import dev.undefinedteam.wearagent.agent.ChatProvider
-import dev.undefinedteam.wearagent.agent.ChatRequest
+import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.Message
-import dev.undefinedteam.wearagent.agent.Tokens
+import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.TranscriptCodec
 import dev.undefinedteam.wearagent.agent.EndpointKind
@@ -62,7 +62,7 @@ class ChatProviderTest {
         assertEquals(listOf("call_a", "call_b"), first.toolCalls.map { it.id })
         assertEquals(listOf("alpha", "beta"), first.toolCalls.map { JSONObject(it.arguments).getString("query") })
         assertEquals(listOf("web_search", "web_search"), first.toolCalls.map { it.name })
-        assertEquals(Tokens(20, 8, 4), first.tokens)
+        assertEquals(TokensUsage(20, 8, 4), first.tokens)
         val initial = requestBody()
         val schema = initial.getJSONArray("tools").getJSONObject(0).getJSONObject("function")
         assertEquals("web_search", schema.getString("name"))
@@ -122,7 +122,7 @@ class ChatProviderTest {
         assertEquals(" more", reasoning.toString())
         assertEquals("call_real", first.toolCalls.single().id)
         assertEquals("wear docs", JSONObject(first.toolCalls.single().arguments).getString("query"))
-        assertEquals(Tokens(30, 12, 7), first.tokens)
+        assertEquals(TokensUsage(30, 12, 7), first.tokens)
         val initial = requestBody()
         assertEquals("function", initial.getJSONArray("tools").getJSONObject(0).getString("type"))
         assertEquals("reasoning.encrypted_content", initial.getJSONArray("include").getString(0))
@@ -209,7 +209,7 @@ class ChatProviderTest {
         assertEquals("Plan", reasoning.toString())
         assertEquals(listOf("use_a", "use_b"), first.toolCalls.map { it.id })
         assertEquals(listOf("alpha", "beta"), first.toolCalls.map { JSONObject(it.arguments).getString("query") })
-        assertEquals(Tokens(22, 5, 9), first.tokens)
+        assertEquals(TokensUsage(22, 5, 9), first.tokens)
         val initial = requestBody()
         assertEquals("query", initial.getJSONArray("tools").getJSONObject(0)
             .getJSONObject("input_schema").getJSONArray("required").getString(0))
@@ -316,7 +316,7 @@ class ChatProviderTest {
         val chunks = mutableListOf<String>()
         val result = provider(EndpointKind.COMPLETIONS).stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = { chunks.add(it.text) })
         assertEquals(listOf("Hello"), chunks)
-        assertEquals(Tokens(2, 0, 1), result.tokens)
+        assertEquals(TokensUsage(2, 0, 1), result.tokens)
     }
 
     @Test fun providerFailuresAreNotReturnedAsSuccessfulPartialAnswers() {
@@ -433,7 +433,7 @@ class ChatProviderTest {
 
     private fun provider(kind: EndpointKind) = ChatProvider(kind)
 
-    private fun request(kind: EndpointKind) = ChatRequest(
+    private fun request(kind: EndpointKind) = ModelRequest(
         server.url("/v1").toString(), "test-model", "key",
     )
 
