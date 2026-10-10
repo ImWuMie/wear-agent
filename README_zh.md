@@ -42,8 +42,18 @@ flowchart LR
 需要 JDK 17+、Android SDK 36。
 
 ```bash
-gradlew.bat :app:assembleDebug
+./gradlew :app:assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Windows 使用 `gradlew.bat` 代替 `./gradlew`。
+
+Huawei Watch 的包安装器会阻止 ADB 安装。仅在这类手表上临时停用安装器，安装 APK，然后重新启用。即使安装失败，也必须恢复安装器。
+
+```bash
+adb shell pm disable-user --user 0 com.android.packageinstaller
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb shell pm enable --user 0 com.android.packageinstaller
 ```
 
 ### 发布签名
