@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import dev.undefinedteam.wearagent.agent.EndpointKind
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -16,7 +17,7 @@ private val Context.settingsDataStore by preferencesDataStore(name = "settings")
 data class EndpointProfile(
     val id: String,
     val name: String,
-    val kind: ApiKind = ApiKind.COMPLETIONS,
+    val kind: EndpointKind = EndpointKind.COMPLETIONS,
     val endpoint: String = "",
     val model: String = "",
     val apiKey: String = "",
@@ -35,7 +36,7 @@ data class AgentSettings(
 ) {
     val active: EndpointProfile?
         get() = endpoints.firstOrNull { it.id == endpointId } ?: endpoints.firstOrNull()
-    val apiKind: ApiKind get() = active?.kind ?: ApiKind.COMPLETIONS
+    val endpointKind: EndpointKind get() = active?.kind ?: EndpointKind.COMPLETIONS
     val endpoint: String get() = active?.endpoint.orEmpty()
     val model: String get() = active?.model.orEmpty()
     val apiKey: String get() = active?.apiKey.orEmpty()
@@ -51,7 +52,7 @@ class SettingsStore(private val context: Context) {
     private val sessionKey = stringPreferencesKey("session_id")
     private val endpointIdKey = stringPreferencesKey("endpoint_id")
     private val endpointsKey = stringPreferencesKey("endpoints")
-    private val apiKindKey = stringPreferencesKey("api_kind")
+    private val endpointKindKey = stringPreferencesKey("api_kind")
     private val endpointKey = stringPreferencesKey("endpoint")
     private val modelKey = stringPreferencesKey("model")
     private val apiKeyKey = stringPreferencesKey("api_key")
@@ -67,7 +68,7 @@ class SettingsStore(private val context: Context) {
                     EndpointProfile(
                         "legacy",
                         legacy,
-                        ApiKind.fromStored(prefs[apiKindKey]),
+                        EndpointKind.from(prefs[endpointKindKey]),
                         legacy,
                         prefs[modelKey].orEmpty(),
                         prefs[apiKeyKey].orEmpty()
@@ -159,7 +160,7 @@ class SettingsStore(private val context: Context) {
                     EndpointProfile(
                         id = item.optString("id"),
                         name = item.optString("name"),
-                        kind = ApiKind.fromStored(item.optString("kind")),
+                        kind = EndpointKind.from(item.optString("kind")),
                         endpoint = item.optString("endpoint"),
                         model = item.optString("model"),
                         apiKey = item.optString("apiKey"),

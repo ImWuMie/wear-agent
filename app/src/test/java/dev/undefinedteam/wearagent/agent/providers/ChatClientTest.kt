@@ -1,7 +1,15 @@
-package dev.undefinedteam.wearagent.agent
+package dev.undefinedteam.wearagent.agent.providers
 
+import dev.undefinedteam.wearagent.agent.ChatProvider
+import dev.undefinedteam.wearagent.agent.ChatRequest
+import dev.undefinedteam.wearagent.agent.Message
+import dev.undefinedteam.wearagent.agent.Tokens
+import dev.undefinedteam.wearagent.agent.ToolCall
+import dev.undefinedteam.wearagent.agent.TranscriptCodec
+import dev.undefinedteam.wearagent.agent.EndpointKind
+import dev.undefinedteam.wearagent.agent.TranscriptItem
+import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.session.AgentSettings
-import dev.undefinedteam.wearagent.session.ApiKind
 import dev.undefinedteam.wearagent.session.EndpointProfile
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -21,7 +29,7 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
-class ChatClientTest {
+class ChatProviderTest {
     private lateinit var server: MockWebServer
     private val definition = ToolDefinition("web_search", "Search and cite sources", """{
         "type":"object","properties":{"query":{"type":"string"}},"required":["query"]
@@ -44,17 +52,17 @@ class ChatClientTest {
             """{"choices":[],"usage":{"prompt_tokens":20,"prompt_tokens_details":{"cached_tokens":8},"completion_tokens":4}}""",
             "[DONE]",
         ))
-        val client = ChatClient()
+        val client = provider(EndpointKind.COMPLETIONS)
         val text = StringBuilder()
         val reasoning = StringBuilder()
-        val first = client.stream(settings(ApiKind.COMPLETIONS), listOf(TranscriptItem.Text(true, "Find sources")),
-            { text.append(it) }, { reasoning.append(it) }, listOf(definition))
+        val first = client.stream(request(EndpointKind.COMPLETIONS), listOf(TranscriptItem.Text(true, "Find sources")),
+            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition))
         assertEquals("Searching", text.toString())
         assertEquals("Check Look sourcesup", reasoning.toString())
         assertEquals(listOf("call_a", "call_b"), first.toolCalls.map { it.id })
         assertEquals(listOf("alpha", "beta"), first.toolCalls.map { JSONObject(it.arguments).getString("query") })
         assertEquals(listOf("web_search", "web_search"), first.toolCalls.map { it.name })
-        assertEquals(ChatClient.Usage(20, 8, 4), first.usage)
+        assertEquals(Tokens(20, 8, 4), first.tokens)
         val initial = requestBody()
         val schema = initial.getJSONArray("tools").getJSONObject(0).getJSONObject("function")
         assertEquals("web_search", schema.getString("name"))
@@ -62,12 +70,12 @@ class ChatClientTest {
 
         val history = listOf(
             TranscriptItem.Text(true, "Find sources"),
-            TranscriptItem.Assistant(text.toString(), first.toolCalls, ApiKind.COMPLETIONS, first.providerContent),
+            TranscriptItem.Assistant(text.toString(), first.toolCalls, EndpointKind.COMPLETIONS, first.providerContent),
             TranscriptItem.ToolResult("call_a", "Alpha source"),
             TranscriptItem.ToolResult("call_b", "Beta source", true),
         )
-        enqueue(finalText(ApiKind.COMPLETIONS, "Answer"))
-        val final = client.stream(settings(ApiKind.COMPLETIONS), history, {})
+        enqueue(finalText(EndpointKind.COMPLETIONS, "Answer"))
+        val final = client.stream(request(EndpointKind.COMPLETIONS), history, onDelta = {})
         val messages = requestBody().getJSONArray("messages")
         assertEquals(4, messages.length())
         val assistant = messages.getJSONObject(1)
@@ -81,10 +89,10 @@ class ChatClientTest {
         assertEquals("call_a", messages.getJSONObject(2).getString("tool_call_id"))
         assertEquals("Beta source", messages.getJSONObject(3).getString("content"))
 
-        enqueue(finalText(ApiKind.COMPLETIONS, "Next"))
-        client.stream(settings(ApiKind.COMPLETIONS), history + TranscriptItem.Assistant(
-            "Answer", final.toolCalls, ApiKind.COMPLETIONS, final.providerContent,
-        ) + TranscriptItem.Text(true, "Continue"), {})
+        enqueue(finalText(EndpointKind.COMPLETIONS, "Next"))
+        client.stream(request(EndpointKind.COMPLETIONS), history + TranscriptItem.Assistant(
+            "Answer", final.toolCalls, EndpointKind.COMPLETIONS, final.providerContent,
+        ) + TranscriptItem.Text(true, "Continue"), onDelta = {})
         val complete = requestBody().getJSONArray("messages")
         assertEquals("Answer", complete.getJSONObject(4).getString("content"))
         assertEquals("Continue", complete.getJSONObject(5).getString("content"))
@@ -105,28 +113,28 @@ class ChatClientTest {
             """{"type":"response.function_call_arguments.delta","output_index":2,"delta":"wear docs\"}"}""",
             """{"type":"response.completed","response":{"status":"completed","usage":{"input_tokens":30,"input_tokens_details":{"cached_tokens":12},"output_tokens":7}}}""",
         ))
+        val client = provider(EndpointKind.RESPONSES)
         val text = StringBuilder()
         val reasoning = StringBuilder()
-        val client = ChatClient()
-        val first = client.stream(settings(ApiKind.RESPONSES), listOf(TranscriptItem.Text(true, "Search")),
-            { text.append(it) }, { reasoning.append(it) }, listOf(definition))
+        val first = client.stream(request(EndpointKind.RESPONSES), listOf(TranscriptItem.Text(true, "Search")),
+            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition))
         assertEquals("Searching", text.toString())
         assertEquals(" more", reasoning.toString())
         assertEquals("call_real", first.toolCalls.single().id)
         assertEquals("wear docs", JSONObject(first.toolCalls.single().arguments).getString("query"))
-        assertEquals(ChatClient.Usage(30, 12, 7), first.usage)
+        assertEquals(Tokens(30, 12, 7), first.tokens)
         val initial = requestBody()
         assertEquals("function", initial.getJSONArray("tools").getJSONObject(0).getString("type"))
         assertEquals("reasoning.encrypted_content", initial.getJSONArray("include").getString(0))
 
         val history = listOf(
             TranscriptItem.Text(true, "Search"),
-            TranscriptItem.Assistant(text.toString(), first.toolCalls, ApiKind.RESPONSES, first.providerContent),
+            TranscriptItem.Assistant(text.toString(), first.toolCalls, EndpointKind.RESPONSES, first.providerContent),
             TranscriptItem.ToolResult("call_real", "Official source"),
         )
-        enqueue(finalText(ApiKind.RESPONSES, "Answer"))
+        enqueue(finalText(EndpointKind.RESPONSES, "Answer"))
         val restored = TranscriptCodec.decode(JSONArray(TranscriptCodec.encode(history).toString()))
-        val final = client.stream(settings(ApiKind.RESPONSES), restored, {})
+        val final = client.stream(request(EndpointKind.RESPONSES), restored, onDelta = {})
         val replay = requestBody()
         val input = replay.getJSONArray("input")
         assertEquals(5, input.length())
@@ -141,10 +149,10 @@ class ChatClientTest {
         assertEquals("Official source", input.getJSONObject(4).getString("output"))
         assertEquals("reasoning.encrypted_content", replay.getJSONArray("include").getString(0))
 
-        enqueue(finalText(ApiKind.RESPONSES, "Next"))
-        client.stream(settings(ApiKind.RESPONSES), history + TranscriptItem.Assistant(
-            "Answer", final.toolCalls, ApiKind.RESPONSES, final.providerContent,
-        ) + TranscriptItem.Text(true, "Continue"), {})
+        enqueue(finalText(EndpointKind.RESPONSES, "Next"))
+        client.stream(request(EndpointKind.RESPONSES), history + TranscriptItem.Assistant(
+            "Answer", final.toolCalls, EndpointKind.RESPONSES, final.providerContent,
+        ) + TranscriptItem.Text(true, "Continue"), onDelta = {})
         val complete = requestBody().getJSONArray("input")
         assertEquals("Answer", complete.getJSONObject(5).getJSONArray("content").getJSONObject(0).getString("text"))
         assertEquals("Continue", complete.getJSONObject(6).getString("content"))
@@ -157,15 +165,15 @@ class ChatClientTest {
             """{"type":"response.output_text.delta","output_index":1,"delta":"Done"}""",
             """{"type":"response.completed","response":{"status":"completed","output":$output,"usage":{"input_tokens":5,"output_tokens":2}}}""",
         ))
-        val client = ChatClient()
-        val first = client.stream(settings(ApiKind.RESPONSES), listOf(TranscriptItem.Text(true, "Hello")), {})
+        val client = provider(EndpointKind.RESPONSES)
+        val first = client.stream(request(EndpointKind.RESPONSES), listOf(TranscriptItem.Text(true, "Hello")), onDelta = {})
         assertTrue(first.toolCalls.isEmpty())
         assertEquals("encrypted", JSONArray(first.providerContent).getJSONObject(0).getString("encrypted_content"))
         assertFalse(requestBody().has("tools"))
-        enqueue(finalText(ApiKind.RESPONSES, "Next"))
-        client.stream(settings(ApiKind.RESPONSES), listOf(TranscriptItem.Assistant(
-            "Done", providerKind = ApiKind.RESPONSES, providerContent = first.providerContent,
-        ), TranscriptItem.Text(true, "Next")), {})
+        enqueue(finalText(EndpointKind.RESPONSES, "Next"))
+        client.stream(request(EndpointKind.RESPONSES), listOf(TranscriptItem.Assistant(
+            "Done", endpointKind = EndpointKind.RESPONSES, providerContent = first.providerContent,
+        ), TranscriptItem.Text(true, "Next")), onDelta = {})
         val replay = requestBody().getJSONArray("input")
         assertEquals("rs_final", replay.getJSONObject(0).getString("id"))
         assertEquals("Done", replay.getJSONObject(1).getJSONArray("content").getJSONObject(0).getString("text"))
@@ -192,28 +200,28 @@ class ChatClientTest {
             """{"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"input_tokens":10,"output_tokens":9}}""",
             """{"type":"message_stop"}""",
         ))
+        val client = provider(EndpointKind.ANTHROPIC)
         val text = StringBuilder()
         val reasoning = StringBuilder()
-        val client = ChatClient()
-        val first = client.stream(settings(ApiKind.ANTHROPIC), listOf(TranscriptItem.Text(true, "Search")),
-            { text.append(it) }, { reasoning.append(it) }, listOf(definition))
+        val first = client.stream(request(EndpointKind.ANTHROPIC), listOf(TranscriptItem.Text(true, "Search")),
+            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition))
         assertEquals("Searching", text.toString())
         assertEquals("Plan", reasoning.toString())
         assertEquals(listOf("use_a", "use_b"), first.toolCalls.map { it.id })
         assertEquals(listOf("alpha", "beta"), first.toolCalls.map { JSONObject(it.arguments).getString("query") })
-        assertEquals(ChatClient.Usage(22, 5, 9), first.usage)
+        assertEquals(Tokens(22, 5, 9), first.tokens)
         val initial = requestBody()
         assertEquals("query", initial.getJSONArray("tools").getJSONObject(0)
             .getJSONObject("input_schema").getJSONArray("required").getString(0))
         val history = listOf(
             TranscriptItem.Text(true, "Search"),
-            TranscriptItem.Assistant(text.toString(), first.toolCalls, ApiKind.ANTHROPIC, first.providerContent),
+            TranscriptItem.Assistant(text.toString(), first.toolCalls, EndpointKind.ANTHROPIC, first.providerContent),
             TranscriptItem.ToolResult("use_a", "Error: unavailable", true),
             TranscriptItem.ToolResult("use_b", "Beta source"),
         )
-        enqueue(finalText(ApiKind.ANTHROPIC, "Answer"))
+        enqueue(finalText(EndpointKind.ANTHROPIC, "Answer"))
         val restored = TranscriptCodec.decode(JSONArray(TranscriptCodec.encode(history).toString()))
-        val final = client.stream(settings(ApiKind.ANTHROPIC), restored, {})
+        val final = client.stream(request(EndpointKind.ANTHROPIC), restored, onDelta = {})
         val continuation = requestBody()
         assertEquals("none", continuation.getJSONObject("tool_choice").getString("type"))
         assertEquals("web_search", continuation.getJSONArray("tools").getJSONObject(0).getString("name"))
@@ -239,43 +247,43 @@ class ChatClientTest {
         assertEquals("use_b", resultBlocks.getJSONObject(1).getString("tool_use_id"))
         assertFalse(resultBlocks.getJSONObject(1).getBoolean("is_error"))
 
-        enqueue(finalText(ApiKind.ANTHROPIC, "Next"))
-        client.stream(settings(ApiKind.ANTHROPIC), history + TranscriptItem.Assistant(
-            "Answer", final.toolCalls, ApiKind.ANTHROPIC, final.providerContent,
-        ) + TranscriptItem.Text(true, "Continue"), {})
+        enqueue(finalText(EndpointKind.ANTHROPIC, "Next"))
+        client.stream(request(EndpointKind.ANTHROPIC), history + TranscriptItem.Assistant(
+            "Answer", final.toolCalls, EndpointKind.ANTHROPIC, final.providerContent,
+        ) + TranscriptItem.Text(true, "Continue"), onDelta = {})
         val complete = requestBody().getJSONArray("messages")
         assertEquals("Answer", complete.getJSONObject(3).getJSONArray("content").getJSONObject(0).getString("text"))
         assertEquals("Continue", complete.getJSONObject(4).getJSONArray("content").getJSONObject(0).getString("text"))
     }
 
     @Test fun protocolSwitchNormalizesCallsInsteadOfReusingForeignNativeBlocks() {
-        for (kind in ApiKind.values()) {
+        for (kind in EndpointKind.values()) {
             enqueue(finalText(kind, "Done"))
-            val foreign = if (kind == ApiKind.COMPLETIONS) ApiKind.ANTHROPIC else ApiKind.COMPLETIONS
-            ChatClient().stream(settings(kind), listOf(
+            val foreign = if (kind == EndpointKind.COMPLETIONS) EndpointKind.ANTHROPIC else EndpointKind.COMPLETIONS
+            provider(kind).stream(request(kind), listOf(
                 TranscriptItem.Text(true, "Search"),
                 TranscriptItem.Assistant("Searching", listOf(ToolCall("pair_id", "web_search", """{"query":"watch"}""")),
                     foreign, "not valid JSON for this protocol"),
                 TranscriptItem.ToolResult("pair_id", "Source"),
                 TranscriptItem.Assistant("Final answer"),
-            ), {})
+            ), onDelta = {})
             val body = requestBody()
-            if (kind != ApiKind.ANTHROPIC) assertFalse(body.has("tools"))
+            if (kind != EndpointKind.ANTHROPIC) assertFalse(body.has("tools"))
             when (kind) {
-                ApiKind.COMPLETIONS -> {
+                EndpointKind.COMPLETIONS -> {
                     val messages = body.getJSONArray("messages")
                     assertEquals("pair_id", messages.getJSONObject(1).getJSONArray("tool_calls").getJSONObject(0).getString("id"))
                     assertEquals("pair_id", messages.getJSONObject(2).getString("tool_call_id"))
                     assertEquals("Final answer", messages.getJSONObject(3).getString("content"))
                 }
-                ApiKind.RESPONSES -> {
+                EndpointKind.RESPONSES -> {
                     val input = body.getJSONArray("input")
                     assertEquals("Searching", input.getJSONObject(1).getJSONArray("content").getJSONObject(0).getString("text"))
                     assertEquals("pair_id", input.getJSONObject(2).getString("call_id"))
                     assertEquals("pair_id", input.getJSONObject(3).getString("call_id"))
                     assertEquals("Final answer", input.getJSONObject(4).getJSONArray("content").getJSONObject(0).getString("text"))
                 }
-                ApiKind.ANTHROPIC -> {
+                EndpointKind.ANTHROPIC -> {
                     assertEquals("none", body.getJSONObject("tool_choice").getString("type"))
                     assertEquals("web_search", body.getJSONArray("tools").getJSONObject(0).getString("name"))
                     val messages = body.getJSONArray("messages")
@@ -289,15 +297,15 @@ class ChatClientTest {
     }
 
     @Test fun textOnlyRequestsDoNotAdvertiseToolsForAnyProtocol() {
-        for (kind in ApiKind.values()) {
+        for (kind in EndpointKind.values()) {
             enqueue(finalText(kind, "Hello"))
             val text = StringBuilder()
-            val outcome = ChatClient().stream(settings(kind), listOf(TranscriptItem.Text(true, "Hi")),
-                { text.append(it) })
+            val outcome = provider(kind).stream(request(kind), listOf(TranscriptItem.Text(true, "Hi")),
+                onDelta = { text.append(it.text) })
             assertEquals("Hello", text.toString())
             assertTrue(outcome.toolCalls.isEmpty())
             assertFalse(requestBody().has("tools"))
-            if (kind == ApiKind.ANTHROPIC) {
+            if (kind == EndpointKind.ANTHROPIC) {
                 assertEquals("Hello", JSONArray(outcome.providerContent).getJSONObject(0).getString("text"))
             }
         }
@@ -306,21 +314,21 @@ class ChatClientTest {
     @Test fun multilineSseAndTransportFragmentsProduceOneLogicalEvent() {
         enqueue(": keepalive\n\nevent: message\ndata: {\"choices\": [\ndata: {\"delta\": {\"content\": \"Hello\"}}],\ndata: \"usage\": {\"prompt_tokens\": 2, \"completion_tokens\": 1}}\n\ndata: [DONE]\n\n")
         val chunks = mutableListOf<String>()
-        val result = ChatClient().stream(settings(ApiKind.COMPLETIONS), emptyList(), { chunks.add(it) })
+        val result = provider(EndpointKind.COMPLETIONS).stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = { chunks.add(it.text) })
         assertEquals(listOf("Hello"), chunks)
-        assertEquals(ChatClient.Usage(2, 0, 1), result.usage)
+        assertEquals(Tokens(2, 0, 1), result.tokens)
     }
 
     @Test fun providerFailuresAreNotReturnedAsSuccessfulPartialAnswers() {
         val failures = listOf(
-            ApiKind.COMPLETIONS to """{"error":{"message":"invalid key"}}""",
-            ApiKind.RESPONSES to """{"type":"response.failed","response":{"status":"failed","error":{"message":"model failed"}}}""",
-            ApiKind.RESPONSES to """{"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}""",
-            ApiKind.ANTHROPIC to """{"type":"error","error":{"type":"overloaded_error","message":"overloaded"}}""",
+            EndpointKind.COMPLETIONS to """{"error":{"message":"invalid key"}}""",
+            EndpointKind.RESPONSES to """{"type":"response.failed","response":{"status":"failed","error":{"message":"model failed"}}}""",
+            EndpointKind.RESPONSES to """{"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}""",
+            EndpointKind.ANTHROPIC to """{"type":"error","error":{"type":"overloaded_error","message":"overloaded"}}""",
         )
         for ((kind, event) in failures) {
             enqueue(wire(event))
-            val error = expectIOException { ChatClient().stream(settings(kind), emptyList(), {}) }
+            val error = expectIOException { provider(kind).stream(request(kind), emptyList(), onDelta = {}) }
             val expected = when {
                 event.contains("invalid key") -> "invalid key"
                 event.contains("model failed") -> "model failed"
@@ -332,7 +340,7 @@ class ChatClientTest {
         }
         enqueue("event: error\ndata: {\"message\":\"named error\"}\n\n")
         assertEquals("named error", expectIOException {
-            ChatClient().stream(settings(ApiKind.COMPLETIONS), emptyList(), {})
+            provider(EndpointKind.COMPLETIONS).stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = {})
         }.message)
         requestBody()
     }
@@ -347,7 +355,7 @@ class ChatClientTest {
         )
         for (body in cases) {
             enqueue(body)
-            expectIOException { ChatClient().stream(settings(ApiKind.COMPLETIONS), emptyList(), {}) }
+            expectIOException { provider(EndpointKind.COMPLETIONS).stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = {}) }
             requestBody()
         }
         enqueue(wire(
@@ -355,46 +363,46 @@ class ChatClientTest {
             """{"type":"response.completed","response":{"status":"completed"}}""",
         ))
         assertEquals("Incomplete tool call identity", expectIOException {
-            ChatClient().stream(settings(ApiKind.RESPONSES), emptyList(), {})
+            provider(EndpointKind.RESPONSES).stream(request(EndpointKind.RESPONSES), emptyList(), onDelta = {})
         }.message)
         requestBody()
     }
 
     @Test fun cancellationBeforeRequestAndBetweenRoundsIsSticky() {
-        val preCanceled = ChatClient()
+        val preCanceled = provider(EndpointKind.COMPLETIONS)
         preCanceled.cancel()
-        assertTrue(expectIOException { preCanceled.stream(settings(ApiKind.COMPLETIONS), emptyList(), {}) } is InterruptedIOException)
+        assertTrue(expectIOException { preCanceled.stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = {}) } is InterruptedIOException)
         assertEquals(0, server.requestCount)
-        enqueue(finalText(ApiKind.COMPLETIONS, "Done"))
-        val client = ChatClient()
-        client.stream(settings(ApiKind.COMPLETIONS), emptyList(), {})
+        enqueue(finalText(EndpointKind.COMPLETIONS, "Done"))
+        val client = provider(EndpointKind.COMPLETIONS)
+        client.stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = {})
         requestBody()
         client.cancel()
         repeat(2) {
-            assertTrue(expectIOException { client.stream(settings(ApiKind.COMPLETIONS), emptyList(), {}) } is InterruptedIOException)
+            assertTrue(expectIOException { client.stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = {}) } is InterruptedIOException)
         }
         assertEquals(1, server.requestCount)
     }
 
     @Test fun cancellationDuringStreamDoesNotReturnPartialSuccessOrStartNextRound() {
-        enqueue(finalText(ApiKind.COMPLETIONS, "Partial"))
-        val client = ChatClient()
+        enqueue(finalText(EndpointKind.COMPLETIONS, "Partial"))
+        val client = provider(EndpointKind.COMPLETIONS)
         val error = expectIOException {
-            client.stream(settings(ApiKind.COMPLETIONS), emptyList(), { client.cancel() })
+            client.stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = { client.cancel() })
         }
         assertTrue(error is InterruptedIOException)
         requestBody()
-        assertTrue(expectIOException { client.stream(settings(ApiKind.COMPLETIONS), emptyList(), {}) } is InterruptedIOException)
+        assertTrue(expectIOException { client.stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = {}) } is InterruptedIOException)
         assertEquals(1, server.requestCount)
     }
 
     @Test fun cancellationInterruptsRegisteredCallBlockedWaitingForResponse() {
         server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE))
         val executor = Executors.newSingleThreadExecutor()
-        val client = ChatClient()
+        val client = provider(EndpointKind.COMPLETIONS)
         try {
-            val result = executor.submit<ChatClient.StreamOutcome> {
-                client.stream(settings(ApiKind.COMPLETIONS), emptyList(), {})
+            val result = executor.submit<Message> {
+                client.stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = {})
             }
             val request = server.takeRequest(5, TimeUnit.SECONDS)
             assertTrue("request must reach server before cancellation", request != null)
@@ -405,7 +413,7 @@ class ChatClientTest {
             } catch (e: ExecutionException) {
                 assertTrue(e.cause is InterruptedIOException)
             }
-            assertTrue(expectIOException { client.stream(settings(ApiKind.COMPLETIONS), emptyList(), {}) } is InterruptedIOException)
+            assertTrue(expectIOException { client.stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = {}) } is InterruptedIOException)
             assertEquals(1, server.requestCount)
         } finally {
             client.cancel()
@@ -414,19 +422,22 @@ class ChatClientTest {
     }
 
     @Test fun modelDiscoveryRemainsIndependentOfTurnCancellation() {
-        val client = ChatClient()
+        val client = provider(EndpointKind.COMPLETIONS)
         client.cancel()
         server.enqueue(MockResponse().setBody("""{"data":[{"id":"model_a"},{"id":"model_b"}]}"""))
-        val settings = settings(ApiKind.COMPLETIONS).copy(endpoints = listOf(
-            EndpointProfile("test", "Test", ApiKind.COMPLETIONS, server.url("/v1/chat/completions").toString(), "test-model", "key"),
-        ))
-        assertEquals(listOf("model_a", "model_b"), client.models(settings))
+        assertEquals(listOf("model_a", "model_b"), client.models(request(EndpointKind.COMPLETIONS)))
         val request = server.takeRequest(5, TimeUnit.SECONDS) ?: throw AssertionError("Missing model request")
         assertEquals("/v1/models", request.path)
         assertEquals("GET", request.method)
     }
 
-    private fun settings(kind: ApiKind) = AgentSettings(
+    private fun provider(kind: EndpointKind) = ChatProvider(kind)
+
+    private fun request(kind: EndpointKind) = ChatRequest(
+        server.url("/v1").toString(), "test-model", "key",
+    )
+
+    private fun settings(kind: EndpointKind) = AgentSettings(
         endpointId = "test",
         endpoints = listOf(EndpointProfile("test", "Test", kind, server.url("/v1").toString(), "test-model", "key")),
     )
@@ -444,10 +455,10 @@ class ChatClientTest {
         event.lineSequence().joinToString("\n", postfix = "\n\n") { "data: $it" }
     }
 
-    private fun finalText(kind: ApiKind, text: String): String = when (kind) {
-        ApiKind.COMPLETIONS -> wire(JSONObject().put("choices", JSONArray().put(JSONObject()
+    private fun finalText(kind: EndpointKind, text: String): String = when (kind) {
+        EndpointKind.COMPLETIONS -> wire(JSONObject().put("choices", JSONArray().put(JSONObject()
             .put("delta", JSONObject().put("content", text)).put("finish_reason", "stop"))).toString(), "[DONE]")
-        ApiKind.RESPONSES -> {
+        EndpointKind.RESPONSES -> {
             val item = JSONObject().put("type", "message").put("id", "msg_final").put("role", "assistant")
                 .put("status", "completed").put("content", JSONArray().put(JSONObject()
                     .put("type", "output_text").put("text", text).put("annotations", JSONArray())))
@@ -455,7 +466,7 @@ class ChatClientTest {
                 JSONObject().put("type", "response.completed").put("response", JSONObject()
                     .put("status", "completed").put("output", JSONArray().put(item))).toString())
         }
-        ApiKind.ANTHROPIC -> wire(
+        EndpointKind.ANTHROPIC -> wire(
             """{"type":"message_start","message":{"content":[],"usage":{"input_tokens":1,"output_tokens":0}}}""",
             """{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}""",
             JSONObject().put("type", "content_block_delta").put("index", 0)

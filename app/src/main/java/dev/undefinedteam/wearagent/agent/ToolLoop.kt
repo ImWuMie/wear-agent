@@ -1,16 +1,20 @@
 package dev.undefinedteam.wearagent.agent
 
+import dev.undefinedteam.wearagent.agent.tools.WebSearchTool
 import dev.undefinedteam.wearagent.session.AgentSettings
 import java.io.InterruptedIOException
 import java.util.concurrent.atomic.AtomicBoolean
 
 /** One cancellable turn. Each assistant tool request is paired before another model round. */
 class ToolLoop(
-    private val client: ChatClient = ChatClient(),
+    /** The endpoint kind picks the protocol implementation; resolved per turn. */
+    private val providerFactory: (EndpointKind) -> ChatProvider =
+        { kind -> ChatProvider(kind) },
     private val search: WebSearchTool = WebSearchTool(),
     private val maxToolRounds: Int = 6,
 ) {
     private val canceled = AtomicBoolean(false)
+    private var provider: ChatProvider? = null
 
     init {
         require(maxToolRounds > 0)
@@ -18,14 +22,14 @@ class ToolLoop(
 
     fun cancel() {
         canceled.set(true)
-        client.cancel()
+        provider?.cancel()
         search.cancel()
     }
 
     data class Outcome(
         val state: TurnState,
         val transcript: List<TranscriptItem>,
-        val usage: ChatClient.Usage?,
+        val tokens: Tokens?,
         val elapsedMs: Long,
         val canceled: Boolean,
     )
@@ -35,6 +39,8 @@ class ToolLoop(
         history: List<TranscriptItem>,
         onUpdate: (TurnState) -> Unit = {},
     ): Outcome {
+        val client = providerFactory(settings.endpointKind)
+        provider = client
         val providerHistory = ArrayList<TranscriptItem>(history)
         val transcript = ArrayList<TranscriptItem>()
         val text = StringBuilder()
@@ -49,12 +55,14 @@ class ToolLoop(
         var executions = 0
 
         fun publish() {
-            onUpdate(TurnState(
-                running = true,
-                text = text.toString(),
-                reasoning = reasoning.toString(),
-                tools = activities,
-            ))
+            onUpdate(
+                TurnState(
+                    running = true,
+                    text = text.toString(),
+                    reasoning = reasoning.toString(),
+                    tools = activities,
+                )
+            )
         }
 
         fun finish(error: String? = null): Outcome = Outcome(
@@ -65,12 +73,13 @@ class ToolLoop(
                 tools = activities,
             ),
             transcript = transcript.toList(),
-            usage = if (hasUsage) ChatClient.Usage(prompt, cached, completion) else null,
+            tokens = if (hasUsage) Tokens(prompt, cached, completion) else null,
             elapsedMs = elapsedMs,
             canceled = canceled.get(),
         )
 
-        val definitions = if (settings.webSearchEnabled) listOf(WebSearchTool.DEFINITION) else emptyList()
+        val definitions =
+            if (settings.webSearchEnabled) listOf(WebSearchTool.DEFINITION) else emptyList()
 
         while (!canceled.get()) {
             val roundText = StringBuilder()
@@ -79,29 +88,32 @@ class ToolLoop(
             } else emptyList()
             val outcome = try {
                 client.stream(
-                    settings,
+                    ChatRequest(
+                        endpoint = settings.endpoint,
+                        model = settings.model,
+                        apiKey = settings.apiKey,
+                    ),
                     providerHistory,
-                    onText = { delta ->
-                        if (delta.isNotEmpty()) {
+                    tools = availableTools,
+                    onDelta = { delta: MessageDelta ->
+                        if (delta.text.isNotEmpty()) {
                             if (roundText.isEmpty() && text.isNotEmpty()) text.append("\n\n")
-                            roundText.append(delta)
-                            text.append(delta)
-                            publish()
+                            roundText.append(delta.text)
+                            text.append(delta.text)
                         }
-                    },
-                    onReasoning = { delta ->
-                        reasoning.append(delta)
+                        if (delta.reasoning.isNotEmpty()) reasoning.append(delta.reasoning)
                         publish()
                     },
-                    tools = availableTools,
                 )
             } catch (error: Exception) {
                 if (roundText.isNotBlank()) {
                     transcript.add(TranscriptItem.Text(false, roundText.toString()))
                 }
-                return finish(if (canceled.get()) null else error.message ?: error.javaClass.simpleName)
+                return finish(
+                    if (canceled.get()) null else error.message ?: error.javaClass.simpleName
+                )
             }
-            outcome.usage?.let {
+            outcome.tokens?.let {
                 hasUsage = true
                 prompt += it.prompt
                 cached += it.cached
@@ -110,13 +122,14 @@ class ToolLoop(
             elapsedMs += outcome.elapsedMs
             if (outcome.toolCalls.isEmpty() && roundText.isEmpty() &&
                 (outcome.providerContent.isEmpty() || outcome.providerContent == "{}" ||
-                    outcome.providerContent == "[]")) {
+                        outcome.providerContent == "[]")
+            ) {
                 return finish()
             }
             val assistant = TranscriptItem.Assistant(
                 text = roundText.toString(),
                 toolCalls = outcome.toolCalls,
-                providerKind = settings.apiKind,
+                endpointKind = settings.endpointKind,
                 providerContent = outcome.providerContent,
             )
             transcript.add(assistant)
@@ -132,8 +145,14 @@ class ToolLoop(
                     canceled.get() -> TranscriptItem.ToolResult(call.id, CANCELED_RESULT, true)
                     exhausted || executions >= MAX_TOOL_CALLS ->
                         TranscriptItem.ToolResult(call.id, "Error: Tool call limit reached.", true)
+
                     !settings.webSearchEnabled ->
-                        TranscriptItem.ToolResult(call.id, "Error: Web search is disabled in settings.", true)
+                        TranscriptItem.ToolResult(
+                            call.id,
+                            "Error: Web search is disabled in settings.",
+                            true
+                        )
+
                     else -> {
                         executions++
                         try {
@@ -142,7 +161,11 @@ class ToolLoop(
                             if (canceled.get()) {
                                 TranscriptItem.ToolResult(call.id, CANCELED_RESULT, true)
                             } else {
-                                TranscriptItem.ToolResult(call.id, "Error: ${error.message ?: "Search timed out."}", true)
+                                TranscriptItem.ToolResult(
+                                    call.id,
+                                    "Error: ${error.message ?: "Search timed out."}",
+                                    true
+                                )
                             }
                         }
                     }

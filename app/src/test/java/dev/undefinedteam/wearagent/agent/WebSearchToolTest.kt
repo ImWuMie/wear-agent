@@ -1,5 +1,6 @@
 package dev.undefinedteam.wearagent.agent
 
+import dev.undefinedteam.wearagent.agent.tools.WebSearchTool
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer

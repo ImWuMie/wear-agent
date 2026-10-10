@@ -1,6 +1,5 @@
 package dev.undefinedteam.wearagent.agent
 
-import dev.undefinedteam.wearagent.session.ApiKind
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -8,30 +7,36 @@ import org.json.JSONObject
 object TranscriptCodec {
     fun encode(items: List<TranscriptItem>): JSONArray = JSONArray().apply {
         for (item in items) {
-            put(when (item) {
-                is TranscriptItem.Text -> JSONObject()
-                    .put("type", "text")
-                    .put("fromUser", item.fromUser)
-                    .put("text", item.text)
-                is TranscriptItem.Assistant -> JSONObject()
-                    .put("type", "assistant")
-                    .put("text", item.text)
-                    .put("provider", item.providerKind.name)
-                    .put("providerContent", item.providerContent)
-                    .put("calls", JSONArray().apply {
-                        for (call in item.toolCalls) {
-                            put(JSONObject()
-                                .put("id", call.id)
-                                .put("name", call.name)
-                                .put("arguments", call.arguments))
-                        }
-                    })
-                is TranscriptItem.ToolResult -> JSONObject()
-                    .put("type", "tool_result")
-                    .put("callId", item.callId)
-                    .put("content", item.content)
-                    .put("isError", item.isError)
-            })
+            put(
+                when (item) {
+                    is TranscriptItem.Text -> JSONObject()
+                        .put("type", "text")
+                        .put("fromUser", item.userMessage)
+                        .put("text", item.text)
+
+                    is TranscriptItem.Assistant -> JSONObject()
+                        .put("type", "assistant")
+                        .put("text", item.text)
+                        .put("provider", item.endpointKind.name)
+                        .put("providerContent", item.providerContent)
+                        .put("calls", JSONArray().apply {
+                            for (call in item.toolCalls) {
+                                put(
+                                    JSONObject()
+                                        .put("id", call.id)
+                                        .put("name", call.name)
+                                        .put("arguments", call.arguments)
+                                )
+                            }
+                        })
+
+                    is TranscriptItem.ToolResult -> JSONObject()
+                        .put("type", "tool_result")
+                        .put("callId", item.callId)
+                        .put("content", item.content)
+                        .put("isError", item.isError)
+                }
+            )
         }
     }
 
@@ -47,15 +52,21 @@ object TranscriptCodec {
                         text = item.getString("text"),
                         toolCalls = List(calls.length()) { callIndex ->
                             val call = calls.getJSONObject(callIndex)
-                            ToolCall(call.getString("id"), call.getString("name"), call.getString("arguments"))
+                            ToolCall(
+                                call.getString("id"),
+                                call.getString("name"),
+                                call.getString("arguments")
+                            )
                         },
-                        providerKind = ApiKind.fromStored(item.getString("provider")),
+                        endpointKind = EndpointKind.from(item.getString("provider")),
                         providerContent = item.optString("providerContent"),
                     )
                 }
+
                 "tool_result" -> TranscriptItem.ToolResult(
                     item.getString("callId"), item.getString("content"), item.optBoolean("isError"),
                 )
+
                 else -> error("Unknown transcript item type")
             }
         }

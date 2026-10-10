@@ -1,4 +1,4 @@
-package dev.undefinedteam.wearagent.presentation
+package dev.undefinedteam.wearagent.presentation.markdown
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -29,6 +29,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dev.undefinedteam.wearagent.presentation.markdown.MarkdownText
 import dev.undefinedteam.wearagent.presentation.theme.WearAgentTheme
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals

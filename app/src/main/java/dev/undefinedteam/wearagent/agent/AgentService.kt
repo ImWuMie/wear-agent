@@ -10,7 +10,7 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.IBinder
 import dev.undefinedteam.wearagent.R
-import dev.undefinedteam.wearagent.presentation.MainActivity
+import dev.undefinedteam.wearagent.presentation.chat.MainActivity
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
@@ -124,9 +124,9 @@ class AgentService : Service() {
                     fromUser = false,
                     text = result.text,
                     reasoning = result.reasoning,
-                    promptTokens = outcome.usage?.prompt ?: 0,
-                    cachedTokens = outcome.usage?.cached ?: 0,
-                    completionTokens = outcome.usage?.completion ?: 0,
+                    promptTokens = outcome.tokens?.prompt ?: 0,
+                    cachedTokens = outcome.tokens?.cached ?: 0,
+                    completionTokens = outcome.tokens?.completion ?: 0,
                     elapsedMs = outcome.elapsedMs,
                     transcript = outcome.transcript,
                 ),
