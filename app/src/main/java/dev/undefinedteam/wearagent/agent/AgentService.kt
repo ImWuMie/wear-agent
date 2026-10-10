@@ -10,7 +10,7 @@ import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.IBinder
 import dev.undefinedteam.wearagent.R
-import dev.undefinedteam.wearagent.presentation.MainActivity
+import dev.undefinedteam.wearagent.presentation.chat.MainActivity
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
@@ -107,10 +107,10 @@ class AgentService : Service() {
         val history = log.load(config.sessionId)
         val providerHistory = ArrayList<TranscriptItem>()
         for (message in history) {
-            if (!message.fromUser && message.transcript.isNotEmpty()) {
+            if (!message.userMessage && message.transcript.isNotEmpty()) {
                 providerHistory.addAll(message.transcript)
             } else {
-                providerHistory.add(TranscriptItem.Text(message.fromUser, message.text))
+                providerHistory.add(TranscriptItem.Text(message.userMessage, message.text))
             }
         }
         val outcome = currentRunner.run(config, providerHistory) { stateFlow.value = it }
@@ -121,12 +121,10 @@ class AgentService : Service() {
                 config.sessionId,
                 ChatMessage(
                     id,
-                    fromUser = false,
+                    userMessage = false,
                     text = result.text,
                     reasoning = result.reasoning,
-                    promptTokens = outcome.usage?.prompt ?: 0,
-                    cachedTokens = outcome.usage?.cached ?: 0,
-                    completionTokens = outcome.usage?.completion ?: 0,
+                    tokens = outcome.tokens,
                     elapsedMs = outcome.elapsedMs,
                     transcript = outcome.transcript,
                 ),

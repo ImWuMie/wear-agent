@@ -1,4 +1,4 @@
-package dev.undefinedteam.wearagent.presentation
+package dev.undefinedteam.wearagent.presentation.markdown
 
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -25,11 +25,11 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -41,7 +41,6 @@ import kotlinx.coroutines.withContext
 import org.commonmark.ext.gfm.strikethrough.Strikethrough
 import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
 import org.commonmark.ext.gfm.tables.TableBlock
-import org.commonmark.ext.gfm.tables.TableCell
 import org.commonmark.ext.gfm.tables.TablesExtension
 import org.commonmark.node.AbstractVisitor
 import org.commonmark.node.BlockQuote
@@ -59,7 +58,6 @@ import org.commonmark.node.SoftLineBreak
 import org.commonmark.node.StrongEmphasis
 import org.commonmark.parser.Parser
 import ru.noties.jlatexmath.JLatexMathDrawable
-import java.util.HashMap
 
 private val parser: Parser = Parser.builder()
     .extensions(listOf(TablesExtension.create(), StrikethroughExtension.create()))
@@ -238,7 +236,8 @@ private fun extractMath(source: String): Pair<String, List<MathSpan>> {
                 while (end < source.length && source[end] == candidate) end++
                 val length = end - start
                 if (length >= 3) {
-                    val lineEnd = source.indexOf('\n', end).let { if (it == -1) source.length else it }
+                    val lineEnd =
+                        source.indexOf('\n', end).let { if (it == -1) source.length else it }
                     var blankTail = true
                     var containsBacktick = false
                     for (position in end until lineEnd) {
@@ -372,7 +371,11 @@ private fun closingDollar(source: String, from: Int): Int {
 }
 
 private fun stripMathDelimiters(text: String): String = when {
-    text.startsWith("$$") && text.endsWith("$$") && text.length > 4 -> text.substring(2, text.length - 2).trim()
+    text.startsWith("$$") && text.endsWith("$$") && text.length > 4 -> text.substring(
+        2,
+        text.length - 2
+    ).trim()
+
     text.startsWith("\\[") && text.endsWith("\\]") -> text.substring(2, text.length - 2).trim()
     else -> text
 }
@@ -406,10 +409,10 @@ private fun parse(source: String): List<Block> {
             // An explicit non-math language denotes literal code, even when it contains delimiters.
             val looksMath = info in setOf("math", "latex", "tex", "formula") ||
                     (info.isNullOrBlank() && (
-                        text.startsWith("\\begin{") ||
-                        text.startsWith("\\[") ||
-                        text.startsWith("$$")
-                    ))
+                            text.startsWith("\\begin{") ||
+                                    text.startsWith("\\[") ||
+                                    text.startsWith("$$")
+                            ))
             if (looksMath) {
                 blocks.add(Block.Formula(stripMathDelimiters(text)))
             } else {
@@ -472,7 +475,12 @@ private fun parse(source: String): List<Block> {
             while (child != null) {
                 val marker = if (startNumber == null) "\u2022 " else "$number. "
                 val item = textOf(child, spans)
-                addMixed(Block.Rich(buildAnnotatedString { append(marker); append(item.text) }, item.inline))
+                addMixed(
+                    Block.Rich(
+                        buildAnnotatedString { append(marker); append(item.text) },
+                        item.inline
+                    )
+                )
                 child = child.next
                 number++
             }
@@ -503,7 +511,8 @@ private fun splitBlocks(rich: Block.Rich, spans: List<MathSpan>): List<Block> {
         out.add(Block.Rich(text, inline))
     }
     markerPattern.findAll(rich.text.text).forEach { match ->
-        val span = spans.getOrNull(match.groupValues[1].toIntOrNull() ?: return@forEach) ?: return@forEach
+        val span =
+            spans.getOrNull(match.groupValues[1].toIntOrNull() ?: return@forEach) ?: return@forEach
         if (!span.block) return@forEach
         if (match.range.first > cursor) {
             addText(cursor, match.range.first)
@@ -532,11 +541,39 @@ private fun AnnotatedString.Builder.appendNode(
     while (node != null) {
         when (node) {
             is org.commonmark.node.Text -> appendMarkers(node.literal, style, spans, inline)
-            is Code -> styled(node.literal, style.merge(SpanStyle(fontFamily = FontFamily.Monospace)))
-            is Emphasis -> appendNode(node.firstChild, style.merge(SpanStyle(fontStyle = FontStyle.Italic)), spans, inline)
-            is StrongEmphasis -> appendNode(node.firstChild, style.merge(SpanStyle(fontWeight = FontWeight.Bold)), spans, inline)
-            is Strikethrough -> appendNode(node.firstChild, style.merge(SpanStyle(textDecoration = TextDecoration.LineThrough)), spans, inline)
-            is Link -> appendNode(node.firstChild, style.merge(SpanStyle(textDecoration = TextDecoration.Underline)), spans, inline)
+            is Code -> styled(
+                node.literal,
+                style.merge(SpanStyle(fontFamily = FontFamily.Monospace))
+            )
+
+            is Emphasis -> appendNode(
+                node.firstChild,
+                style.merge(SpanStyle(fontStyle = FontStyle.Italic)),
+                spans,
+                inline
+            )
+
+            is StrongEmphasis -> appendNode(
+                node.firstChild,
+                style.merge(SpanStyle(fontWeight = FontWeight.Bold)),
+                spans,
+                inline
+            )
+
+            is Strikethrough -> appendNode(
+                node.firstChild,
+                style.merge(SpanStyle(textDecoration = TextDecoration.LineThrough)),
+                spans,
+                inline
+            )
+
+            is Link -> appendNode(
+                node.firstChild,
+                style.merge(SpanStyle(textDecoration = TextDecoration.Underline)),
+                spans,
+                inline
+            )
+
             is SoftLineBreak, is org.commonmark.node.HardLineBreak -> append('\n')
             is org.commonmark.node.HtmlInline -> styled(node.literal, style)
             else -> appendNode(node.firstChild, style, spans, inline)

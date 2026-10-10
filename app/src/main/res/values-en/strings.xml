@@ -6,6 +6,8 @@
     <string name="hero_subtitle">Pull up to ask anything</string>
     <string name="send">Send</string>
     <string name="hold_to_talk">Hold to talk</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_no_speech">No speech detected</string>
     <string name="stop">Stop</string>
     <string name="thinking">Reasoning</string>
     <string name="thinking_active">Thinking</string>

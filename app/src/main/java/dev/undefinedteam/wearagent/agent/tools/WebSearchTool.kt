@@ -1,5 +1,8 @@
-package dev.undefinedteam.wearagent.agent
+package dev.undefinedteam.wearagent.agent.tools
 
+import dev.undefinedteam.wearagent.agent.ToolCall
+import dev.undefinedteam.wearagent.agent.ToolDefinition
+import dev.undefinedteam.wearagent.agent.TranscriptItem
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -8,6 +11,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
+import java.io.BufferedReader
 import java.io.FilterInputStream
 import java.io.IOException
 import java.io.InputStream
@@ -16,6 +20,7 @@ import java.net.SocketTimeoutException
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
+import kotlin.io.bufferedReader
 
 /** Read-only Parallel public MCP search, with no credentials or provider fallback. */
 class WebSearchTool(
@@ -37,7 +42,8 @@ class WebSearchTool(
         .build()
     private val lock = Any()
     private val activeCalls = mutableSetOf<Call>()
-    @Volatile private var canceled = false
+    @Volatile
+    private var canceled = false
 
     fun cancel() {
         synchronized(lock) {
@@ -56,16 +62,25 @@ class WebSearchTool(
                 .url(endpoint)
                 .header("Accept", "application/json, text/event-stream")
                 .header("User-Agent", "WearAgent")
-                .post(JSONObject()
-                    .put("jsonrpc", "2.0")
-                    .put("id", call.id)
-                    .put("method", "tools/call")
-                    .put("params", JSONObject()
-                        .put("name", "web_search")
-                        .put("arguments", JSONObject()
-                            .put("objective", arguments.query)
-                            .put("search_queries", JSONArray().put(arguments.searchQuery))))
-                    .toString().toRequestBody("application/json".toMediaType()))
+                .post(
+                    JSONObject()
+                        .put("jsonrpc", "2.0")
+                        .put("id", call.id)
+                        .put("method", "tools/call")
+                        .put(
+                            "params", JSONObject()
+                                .put("name", "web_search")
+                                .put(
+                                    "arguments", JSONObject()
+                                        .put("objective", arguments.query)
+                                        .put(
+                                            "search_queries",
+                                            JSONArray().put(arguments.searchQuery)
+                                        )
+                                )
+                        )
+                        .toString().toRequestBody("application/json".toMediaType())
+                )
                 .build()
             val networkCall = http.newCall(request)
             current = networkCall
@@ -85,7 +100,8 @@ class WebSearchTool(
                 }
                 val reader = LimitedInputStream(body.byteStream()).bufferedReader(Charsets.UTF_8)
                 val rpc = if (response.header("Content-Type")
-                        ?.contains("text/event-stream", ignoreCase = true) == true) {
+                        ?.contains("text/event-stream", ignoreCase = true) == true
+                ) {
                     readSse(reader, call.id)
                 } else {
                     selectResponse(parseJson(reader.readText()), call.id)
@@ -99,14 +115,18 @@ class WebSearchTool(
         } catch (error: Exception) {
             checkCancellation()
             val timedOut = error is SocketTimeoutException ||
-                (error is InterruptedIOException && error.message == "timeout")
+                    (error is InterruptedIOException && error.message == "timeout")
             if (!timedOut && (error is InterruptedIOException || current?.isCanceled() == true)) {
                 if (error is InterruptedIOException) throw error
                 throw InterruptedIOException("Web search canceled").apply { initCause(error) }
             }
             return TranscriptItem.ToolResult(
                 call.id,
-                "Error: ${if (timedOut) "Parallel MCP request timed out" else error.message?.take(500) ?: "Parallel MCP search failed"}",
+                "Error: ${
+                    if (timedOut) "Parallel MCP request timed out" else error.message?.take(
+                        500
+                    ) ?: "Parallel MCP search failed"
+                }",
                 isError = true,
             )
         } finally {
@@ -138,14 +158,18 @@ class WebSearchTool(
         } else null
         val limit = if (arguments.has("limit")) {
             val value = arguments.opt("limit")
-            require(value is Number && value.toDouble().isFinite() &&
-                value.toDouble() == value.toInt().toDouble() && value.toInt() in 1..10) {
+            require(
+                value is Number && value.toDouble().isFinite() &&
+                        value.toDouble() == value.toInt().toDouble() && value.toInt() in 1..10
+            ) {
                 "limit must be an integer from 1 to 10"
             }
             value.toInt()
         } else 5
         val searchQuery = if (recency != null && !AFTER_OPERATOR.containsMatchIn(query)) {
-            "$query after:${LocalDate.now(ZoneOffset.UTC).minusDays(RECENCY_DAYS.getValue(recency))}"
+            "$query after:${
+                LocalDate.now(ZoneOffset.UTC).minusDays(RECENCY_DAYS.getValue(recency))
+            }"
         } else query
         return Arguments(query, searchQuery, limit)
     }
@@ -172,12 +196,16 @@ class WebSearchTool(
         val hasError = message.has("error")
         val id = message.opt("id")
         if (message.has("method")) {
-            require(message.opt("method") is String && !hasResult && !hasError &&
-                (!message.has("id") || id is String || id is Number)) {
+            require(
+                message.opt("method") is String && !hasResult && !hasError &&
+                        (!message.has("id") || id is String || id is Number)
+            ) {
                 "Parallel MCP returned a malformed JSON-RPC notification or request"
             }
-            require(!message.has("params") || message.opt("params") is JSONObject ||
-                message.opt("params") is JSONArray) { "Parallel MCP returned invalid JSON-RPC params" }
+            require(
+                !message.has("params") || message.opt("params") is JSONObject ||
+                        message.opt("params") is JSONArray
+            ) { "Parallel MCP returned invalid JSON-RPC params" }
             return null
         }
         require((id is String || id is Number) && hasResult != hasError) {
@@ -192,7 +220,7 @@ class WebSearchTool(
         return message.takeIf { id == expectedId }
     }
 
-    private fun readSse(reader: java.io.BufferedReader, expectedId: String): JSONObject {
+    private fun readSse(reader: BufferedReader, expectedId: String): JSONObject {
         val data = StringBuilder()
         var firstLine = true
         while (true) {
@@ -248,7 +276,11 @@ class WebSearchTool(
                 val item = content.optJSONObject(index) ?: continue
                 val text = item.opt("text") as? String ?: continue
                 if (item.opt("type") != "text") continue
-                val candidate = try { parseJson(text) as? JSONObject } catch (_: Exception) { null }
+                val candidate = try {
+                    parseJson(text) as? JSONObject
+                } catch (_: Exception) {
+                    null
+                }
                 if (candidate?.optJSONArray("results") != null) {
                     parsed = candidate
                     break
@@ -284,7 +316,8 @@ class WebSearchTool(
 
     private fun boundedSnippet(excerpts: JSONArray?): String = buildString {
         if (excerpts != null) for (index in 0 until excerpts.length()) {
-            val excerpt = (excerpts.opt(index) as? String)?.trim()?.takeIf { it.isNotEmpty() } ?: continue
+            val excerpt =
+                (excerpts.opt(index) as? String)?.trim()?.takeIf { it.isNotEmpty() } ?: continue
             if (isNotEmpty()) append("\n\n".take(500 - length))
             append(excerpt.take(500 - length))
             if (length == 500) break
@@ -302,7 +335,11 @@ class WebSearchTool(
         }
 
         override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-            val read = `in`.read(buffer, offset, minOf(length.toLong(), MAX_RESPONSE_BYTES - bytesRead + 1).toInt())
+            val read = `in`.read(
+                buffer,
+                offset,
+                minOf(length.toLong(), MAX_RESPONSE_BYTES - bytesRead + 1).toInt()
+            )
             if (read > 0) count(read)
             return read
         }

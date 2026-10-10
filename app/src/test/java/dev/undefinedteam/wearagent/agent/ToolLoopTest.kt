@@ -1,5 +1,6 @@
 package dev.undefinedteam.wearagent.agent
 
+import dev.undefinedteam.wearagent.agent.tools.WebSearchTool
 import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.EndpointProfile
 import okhttp3.mockwebserver.Dispatcher
@@ -33,12 +34,15 @@ class ToolLoopTest {
                 search.enqueue(searchResult("https://developer.android.com/training/wearables"))
                 search.enqueue(searchResult("https://developer.android.com", "two"))
                 val states = ArrayList<TurnState>()
-                val loop = ToolLoop(search = WebSearchTool(endpoint = search.url("/mcp").toString()))
+                val loop = ToolLoop(search = WebSearchTool(
+                    endpoint = search.url("/mcp").toString()
+                )
+                )
                 val result = loop.run(settings(model), listOf(TranscriptItem.Text(true, "Compare docs")), states::add)
 
                 assertFalse(result.canceled)
                 assertFalse(result.state.running)
-                assertEquals(ChatClient.Usage(30, 6, 8), result.usage)
+                assertEquals(TokensUsage(30, 6, 8), result.tokens)
                 assertEquals(2, search.requestCount)
                 assertEquals(2, model.requestCount)
                 val toolResults = result.transcript.filterIsInstance<TranscriptItem.ToolResult>()
@@ -71,7 +75,10 @@ class ToolLoopTest {
                         return MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
                     }
                 }
-                val loop = ToolLoop(search = WebSearchTool(endpoint = search.url("/mcp").toString()))
+                val loop = ToolLoop(search = WebSearchTool(
+                    endpoint = search.url("/mcp").toString()
+                )
+                )
                 val executor = Executors.newSingleThreadExecutor()
                 try {
                     val future = executor.submit<ToolLoop.Outcome> {
