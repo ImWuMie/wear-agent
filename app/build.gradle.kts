@@ -31,6 +31,7 @@ android {
         targetSdk = 36
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("VERSION_NAME") ?: "1.0"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
@@ -61,6 +62,7 @@ android {
             optimization {
                 enable = true
             }
+            proguardFiles("proguard-rules.pro")
         }
     }
     compileOptions {
@@ -104,4 +106,8 @@ implementation(libs.lifecycle.runtime.compose)
     testImplementation(libs.junit)
     testImplementation(libs.mockwebserver)
     testImplementation(libs.org.json)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.android.test.runner)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
