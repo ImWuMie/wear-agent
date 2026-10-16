@@ -8,12 +8,7 @@ import org.scilab.forge.jlatexmath.TeXFormula
 import ru.noties.jlatexmath.awt.AndroidGraphics2D
 import ru.noties.jlatexmath.awt.Color
 
-/**
- * TeX math style a formula is rendered in. Inline formulas sit in running text and must keep
- * operators compact (limits to the side); display formulas stand alone and use full-size layout
- * (limits above and below). Rendering both in display style — which the stock drawable does —
- * inflates inline formulas to block height.
- */
+/** Inline formulas keep operators compact; display formulas use full-size layout. */
 internal enum class MathStyle(val texStyle: Int) {
     INLINE(TeXConstants.STYLE_TEXT),
     DISPLAY(TeXConstants.STYLE_DISPLAY),
@@ -23,26 +18,19 @@ private data class FormulaKey(val source: String, val size: Float, val style: Ma
 
 private val formulaCache = HashMap<FormulaKey, Bitmap>()
 
-/** A previously successful render, or null when this formula has not rendered yet or cannot. */
 internal fun cachedFormula(source: String, size: Float, style: MathStyle): Bitmap? =
     synchronized(formulaCache) { formulaCache[FormulaKey(source, size, style)] }
 
 /**
- * Rasterizes LaTeX to a white-on-transparent bitmap, memoized by source, size and style.
- *
- * jlatexmath keeps its macro table in process-wide statics, so `\newcommand`/`\renewcommand` in one
- * formula would otherwise redefine commands for every formula rendered afterwards — across messages
- * and across sessions. The table is snapshotted and restored around each parse, keeping formulas
- * isolated while still allowing a macro to be defined and used within a single formula.
- *
- * Only successful renders are cached. A formula that failed while jlatexmath was still loading its
- * fonts would otherwise stay blank for the lifetime of the process, since a cached null is never
- * retried; leaving failures uncached lets the next attempt succeed.
+ * Rasterizes LaTeX to a white-on-transparent bitmap, memoized by source, size and style. Failures
+ * are not cached, so a render that lost a race with font loading can succeed on the next attempt.
  */
 internal fun renderFormula(source: String, size: Float, style: MathStyle): Bitmap? =
     synchronized(formulaCache) {
         val key = FormulaKey(source, size, style)
         formulaCache[key]?.let { return it }
+        // jlatexmath's macro table is process-wide, so a \newcommand in one formula would redefine
+        // commands for every formula rendered afterwards. Snapshot and restore around each parse.
         ensureCommandTableInitialized()
         val commands = HashMap(MacroInfo.Commands)
         val bitmap = try {
@@ -56,11 +44,8 @@ internal fun renderFormula(source: String, size: Float, style: MathStyle): Bitma
     }
 
 /**
- * jlatexmath registers its built-in command aliases (`\dfrac`, `\operatorname`, the matrix
- * environments, ...) in static initializers that only run when their owning classes are first
- * touched. Reading [MacroInfo.Commands] before that yields an incomplete table, so a later restore
- * would drop those built-ins permanently. Touching the classes first guarantees the snapshot is
- * taken against the full table.
+ * Built-in aliases (`\dfrac`, `\operatorname`, matrix environments) register lazily on first parse,
+ * so the snapshot above is only complete once their owning classes have loaded.
  */
 private fun ensureCommandTableInitialized() {
     try {

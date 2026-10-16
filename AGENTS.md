@@ -67,11 +67,45 @@ Inline formulas render in TeX text style, display formulas in display style; the
 `JLatexMathDrawable` hard-codes display style, which inflates inline operators to block height, so
 rasterization goes through `TeXIconBuilder` + `AndroidGraphics2D` directly.
 
-## Conventions
+## Code style
 
-- **Comments explain why, not what.** Match the existing density: a doc comment on non-obvious
-  declarations, and a note at a non-obvious decision or invariant. Do not narrate straightforward
-  code.
+Formatting is `kotlin.code.style=official`: 4-space indent, trailing commas on wrapped
+argument/parameter lists. There is no configured formatter — do not reformat files you did not
+otherwise touch. Long lines exist (some exceed 100 columns); follow the surrounding file.
+
+### File size and structure
+
+**Keep files short. One file is one concern.** No file should grow past roughly 300 lines; when a
+file mixes distinct responsibilities, split it before adding to it. `MessageBubble.kt` (434 lines)
+is the current worst case and a standing candidate for another split.
+
+- Split by **dependency direction or concern, not by line count**. `markdown/` is the worked
+  example: `MarkdownText` (render) → `MarkdownParse` (CommonMark → blocks) → `MarkdownMath` (LaTeX
+  extraction), with `LatexImage` (raster) shared by the render layer. A 667-line file became four
+  files that each have one reason to change.
+- Separate protocols/providers, one implementation per file (`providers/`). Separate UI pieces that
+  are independently testable or reused (`chat/`, `markdown/`).
+- Prefer **adding a file over growing an existing one**. If a new feature does not obviously belong
+  to an existing concern, it gets its own file.
+- Split shared internals as `internal`, not `public`; do not widen the module's API to enable a
+  split.
+
+### Comments
+
+**Write as few comments as possible, and only where they carry weight.** Assume the reader knows
+Kotlin and Compose; do not narrate what the code plainly says, and do not add a comment just to
+have one.
+
+- Comment a **non-obvious decision, invariant, or constraint** — something the code cannot show by
+  itself: a workaround for a library bug, a deliberate ordering, a security boundary, a reason a
+  seemingly simpler approach is wrong.
+- Do **not** comment straightforward control flow, obvious naming, or restate a signature. No
+  section-divider banners, no changelog notes in code, no commented-out code.
+- Prefer no comment over a redundant one. If a comment and the code disagree, delete the comment.
+- Existing files run about 4–8% comment lines; treat that as the ceiling, not a target. Match the
+  surrounding file when editing it.
+
+## Project conventions
 - **User-facing strings live in resources**, both `res/values/` (Chinese, the default) and
   `res/values-en/`. Never hard-code user-visible text.
 - **Settings are declared, not wired by hand.** Add a page in
@@ -81,10 +115,18 @@ rasterization goes through `TeXIconBuilder` + `AndroidGraphics2D` directly.
 - **Persisted settings are additive.** `SettingsStore` encodes endpoint profiles as JSON and reads
   missing keys with defaults, so an added field stays backward compatible with existing installs.
   The JSONL session format is likewise read defensively; do not break existing session files.
-- Long lines exist in this codebase (some exceed 100 columns); follow the surrounding file rather
-  than reformatting. There is no configured formatter — do not run one.
-- Commit messages state the root cause of a fix, not just the change. See `git log` for the house
-  style.
+
+### Commit messages
+
+**Keep them short: a one-line subject, plus a few bullets only when the change is not obvious.**
+The subject names the change; the body shows the key points, not a narrative.
+
+- Subject: `type(scope): summary` — `feat` / `fix` / `refactor` / `docs` / `test` / `chore`.
+  Imperative, lowercase, no trailing period.
+- Body: at most a handful of bullets covering what changed and, for a fix, the **root cause** — not
+  every touched file. Skip the body entirely when the subject is self-explanatory.
+- No verification logs, no file inventories, no restating the diff. A reader should get the point in
+  a few seconds.
 
 ## Security notes
 

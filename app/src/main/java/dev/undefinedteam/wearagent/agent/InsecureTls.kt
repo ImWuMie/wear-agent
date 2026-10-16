@@ -8,12 +8,10 @@ import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 
 /**
- * Opt-in TLS bypass for endpoints whose certificate chain cannot be verified — a self-signed
- * gateway, a private host, or a device whose clock makes a valid certificate look unissued.
- *
- * This accepts **any** certificate and hostname, so it also removes the protection against
- * interception and impersonation. It must stay an explicit, per-endpoint choice; never enable it
- * by default, and never share one client between a bypassing and a verifying endpoint.
+ * Opt-in TLS bypass for a self-signed endpoint or a device clock that makes a valid certificate
+ * look unissued. Accepts any certificate and hostname, so it also removes interception protection:
+ * keep it an explicit per-endpoint choice, never on by default, and never shared with a verifying
+ * client.
  */
 object InsecureTls {
     private val trustAll = object : X509TrustManager {
@@ -28,7 +26,7 @@ object InsecureTls {
         init(null, arrayOf<TrustManager>(trustAll), SecureRandom())
     }.socketFactory
 
-    /** Disables certificate and hostname verification on this client when [enabled]. */
+    /** Disables certificate and hostname verification when [enabled]. */
     fun OkHttpClient.Builder.insecureTls(enabled: Boolean): OkHttpClient.Builder = apply {
         if (enabled) {
             sslSocketFactory(socketFactory, trustAll)
