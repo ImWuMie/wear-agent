@@ -15,7 +15,7 @@ import org.json.JSONObject
 import java.io.IOException
 
 /** Anthropic Messages protocol (/messages, content-block SSE). */
-class AnthropicProvider : SseChatClient() {
+class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTls) {
     override fun chatUrl(request: ModelRequest): String {
         val base = request.endpoint.trim().trimEnd('/')
         return if (base.endsWith(SUFFIX)) base else base + SUFFIX

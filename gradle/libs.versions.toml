@@ -17,6 +17,7 @@ wearRemoteInteractions = "1.2.0"
 junit = "4.13.2"
 orgJson = "20240303"
 androidTestRunner = "1.7.0"
+espresso = "3.7.0"
 
 [libraries]
 play-services-wearable = { group = "com.google.android.gms", name = "play-services-wearable", version.ref = "playServicesWearable" }
@@ -45,8 +46,10 @@ jlatexmath-cyrillic = { group = "ru.noties", name = "jlatexmath-android-font-cyr
 wear-remote-interactions = { group = "androidx.wear", name = "wear-remote-interactions", version.ref = "wearRemoteInteractions" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 mockwebserver = { group = "com.squareup.okhttp3", name = "mockwebserver", version.ref = "okhttp" }
+okhttp-tls = { group = "com.squareup.okhttp3", name = "okhttp-tls", version.ref = "okhttp" }
 org-json = { group = "org.json", name = "json", version.ref = "orgJson" }
 android-test-runner = { group = "androidx.test", name = "runner", version.ref = "androidTestRunner" }
+espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -187,13 +187,14 @@ private fun MessageList(
     }
     val curved = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.curvedList
     val roundFit = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.roundFit
+    val mathFitWidth = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.mathFitWidth
     if (messages.isEmpty() && !turnState.running) {
         // Empty session: hero title + input hint, like the reference layout
         EmptyChatHero()
         return
     }
     if (curved) {
-        CurvedMessages(messages, turnState, onSelect, roundFit)
+        CurvedMessages(messages, turnState, onSelect, roundFit, mathFitWidth)
         return
     }
     LaunchedEffect(messages.size, turnState.running) {
@@ -208,10 +209,15 @@ private fun MessageList(
     ) {
         items(messages, key = { it.id }) { message ->
             Column {
-                Bubble(message, roundFit = roundFit, onLongPress = { onSelect(message) })
+                Bubble(
+                    message,
+                    roundFit = roundFit,
+                    mathFitWidth = mathFitWidth,
+                    onLongPress = { onSelect(message) },
+                )
             }
         }
-        if (turnState.live) item { LiveBubble(turnState, roundFit) }
+        if (turnState.live) item { LiveBubble(turnState, roundFit, mathFitWidth) }
     }
 }
 

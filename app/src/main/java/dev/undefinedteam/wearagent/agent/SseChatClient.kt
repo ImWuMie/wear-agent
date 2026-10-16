@@ -2,6 +2,7 @@ package dev.undefinedteam.wearagent.agent
 
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
+import dev.undefinedteam.wearagent.agent.InsecureTls.insecureTls
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -18,10 +19,11 @@ import java.util.concurrent.TimeUnit
  * the protocol pieces: endpoint URL, auth headers, request body, stream-event
  * reducer, and final message assembly.
  */
-abstract class SseChatClient : ChatProvider {
+abstract class SseChatClient(insecureTls: Boolean = false) : ChatProvider {
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
+        .insecureTls(insecureTls)
         .build()
     private val quickHttp = http.newBuilder()
         .connectTimeout(10, TimeUnit.SECONDS)

@@ -44,6 +44,7 @@
     <string name="mode_voice">Voice</string>
     <string name="ime_send_now">IME send: send immediately</string>
     <string name="curved_list">Round-screen scaling</string>
+    <string name="math_fit_width">Scale formulas to fit width</string>
     <string name="round_fit">Round-screen width fit</string>
     <string name="tools">Tools</string>
     <string name="web_search">Web search</string>
@@ -60,6 +61,9 @@
     <string name="fetch_models_retry">Failed. Tap to retry</string>
     <string name="loading_models">Fetching…</string>
     <string name="fetch_models_hint">Or type a model name below</string>
+    <string name="security">Security</string>
+    <string name="ignore_ssl">Ignore SSL certificate validation</string>
+    <string name="ignore_ssl_warning">Applies to this endpoint only. Accepts any certificate, so it cannot detect interception; use only for self-signed hosts or a wrong device clock.</string>
     <string name="api_key">API key</string>
     <string name="save">Save</string>
     <string name="about">About</string>

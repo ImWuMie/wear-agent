@@ -63,6 +63,7 @@ internal fun CurvedMessages(
     turnState: TurnState,
     onSelect: (ChatMessage) -> Unit,
     roundFit: Boolean = true,
+    mathFitWidth: Boolean = true,
 ) {
     val state = rememberTransformingLazyColumnState()
     val spec = rememberTransformationSpec()
@@ -86,18 +87,29 @@ internal fun CurvedMessages(
                         .transformedHeight(this, spec)
                         .graphicsLayer { with(itemTransformation) { applyContainerTransformation() } },
                 ) {
-                    Bubble(message, roundFit = roundFit, onLongPress = { onSelect(message) })
+                    Bubble(
+                        message,
+                        roundFit = roundFit,
+                        mathFitWidth = mathFitWidth,
+                        onLongPress = { onSelect(message) },
+                    )
                 }
             }
             if (turnState.live) item {
-                Column(Modifier.transformedHeight(this, spec)) { LiveBubble(turnState, roundFit) }
+                Column(Modifier.transformedHeight(this, spec)) {
+                    LiveBubble(turnState, roundFit, mathFitWidth)
+                }
             }
         }
     }
 }
 
 @Composable
-internal fun LiveBubble(state: TurnState, roundFit: Boolean = true) {
+internal fun LiveBubble(
+    state: TurnState,
+    roundFit: Boolean = true,
+    mathFitWidth: Boolean = true,
+) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
         val body = if (state.failed) state.error.orEmpty() else state.text
         Bubble(
@@ -108,6 +120,7 @@ internal fun LiveBubble(state: TurnState, roundFit: Boolean = true) {
                 reasoning = if (state.failed) "" else state.reasoning
             ),
             roundFit = roundFit,
+            mathFitWidth = mathFitWidth,
             activeThinking = state.thinking,
             toolActivities = if (state.failed) emptyList() else state.tools,
             toolsRunning = state.running,
@@ -136,6 +149,7 @@ private fun ToolActivities(
     tools: List<ToolActivity>,
     running: Boolean,
     onLongPress: () -> Unit = {},
+    mathFitWidth: Boolean = true,
 ) {
     tools.forEach { activity ->
         key(activity.call.id) {
@@ -199,7 +213,11 @@ private fun ToolActivities(
                 }
                 AnimatedVisibility(visible = expanded && result != null) {
                     SelectionContainer {
-                        MarkdownText(result.orEmpty(), Modifier.padding(top = 4.dp))
+                        MarkdownText(
+                            result.orEmpty(),
+                            Modifier.padding(top = 4.dp),
+                            mathFitWidth = mathFitWidth,
+                        )
                     }
                 }
             }
@@ -310,6 +328,7 @@ private fun ThinkingDots() {
 @Composable
 internal fun Bubble(
     message: ChatMessage,
+    mathFitWidth: Boolean = true,
     modifier: Modifier = Modifier,
     transformation: SurfaceTransformation? = null,
     roundFit: Boolean = true,
@@ -350,7 +369,7 @@ internal fun Bubble(
                 onLongPress = onLongPress,
             ) {
                 Column {
-                    if (tools.isNotEmpty()) ToolActivities(tools, toolsRunning, onLongPress)
+                    if (tools.isNotEmpty()) ToolActivities(tools, toolsRunning, onLongPress, mathFitWidth)
                     if (message.reasoning.isNotBlank()) {
                         ThinkingBlock(
                             message.reasoning,
@@ -360,7 +379,7 @@ internal fun Bubble(
                             onLongPress = onLongPress,
                         )
                     }
-                    if (message.text.isNotBlank()) MarkdownText(message.text)
+                    if (message.text.isNotBlank()) MarkdownText(message.text, mathFitWidth = mathFitWidth)
                     if (activeThinking && message.reasoning.isBlank()) ThinkingDots()
                     if (!message.userMessage) message.tokens?.let { UsageLine(it, message.elapsedMs) }
                 }

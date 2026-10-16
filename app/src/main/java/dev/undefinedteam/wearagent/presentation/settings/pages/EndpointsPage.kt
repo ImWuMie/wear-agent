@@ -99,6 +99,20 @@ val EndpointDetailPage: SettingsPage = settingsPage(
     list.field(R.string.api_key, profile.apiKey) { value ->
         launch { store.updateEndpoint(profile.id) { it.copy(apiKey = value) } }
     }
+    list.subHeader(R.string.security)
+    list.switch(R.string.ignore_ssl, profile.insecureTls) { value ->
+        launch { store.updateEndpoint(profile.id) { it.copy(insecureTls = value) } }
+    }
+    list.custom(horizontalAlignment = Alignment.Start) {
+        Text(
+            stringResource(R.string.ignore_ssl_warning),
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 8.dp),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
     list.row(R.string.delete_endpoint) {
         launch { store.deleteEndpoint(profile.id) }
     }
@@ -173,8 +187,8 @@ private fun SettingsPageScope.fetchModels(editor: EndpointEditorState) {
             val target = current.endpoints.firstOrNull { it.id == editor.editingId }
                 ?: error("no endpoint")
             val models = withContext(Dispatchers.IO) {
-                ChatProvider(target.kind).models(
-                    ModelRequest(target.endpoint, target.model, target.apiKey)
+                ChatProvider(target.kind, target.insecureTls).models(
+                    ModelRequest(target.endpoint, target.model, target.apiKey, target.insecureTls)
                 )
             }
             editor.models = models

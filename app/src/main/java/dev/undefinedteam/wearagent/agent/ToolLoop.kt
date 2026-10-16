@@ -8,8 +8,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 /** One cancellable turn. Each assistant tool request is paired before another model round. */
 class ToolLoop(
     /** The endpoint kind picks the protocol implementation; resolved per turn. */
-    private val providerFactory: (EndpointKind) -> ChatProvider =
-        { kind -> ChatProvider(kind) },
+    private val providerFactory: (EndpointKind, Boolean) -> ChatProvider =
+        { kind, insecureTls -> ChatProvider(kind, insecureTls) },
     private val search: WebSearchTool = WebSearchTool(),
     private val maxToolRounds: Int = 6,
 ) {
@@ -39,7 +39,7 @@ class ToolLoop(
         history: List<TranscriptItem>,
         onUpdate: (TurnState) -> Unit = {},
     ): Outcome {
-        val client = providerFactory(settings.endpointKind)
+        val client = providerFactory(settings.endpointKind, settings.insecureTls)
         provider = client
         val providerHistory = ArrayList<TranscriptItem>(history)
         val transcript = ArrayList<TranscriptItem>()

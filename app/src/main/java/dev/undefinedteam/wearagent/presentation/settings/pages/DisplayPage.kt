@@ -12,4 +12,7 @@ val DisplayPage: SettingsPage = settingsPage("display", titleRes = R.string.disp
     list.switch(R.string.round_fit, current.roundFit) { value ->
         launch { store.setRoundFit(value) }
     }
+    list.switch(R.string.math_fit_width, current.mathFitWidth) { value ->
+        launch { store.setMathFitWidth(value) }
+    }
 }

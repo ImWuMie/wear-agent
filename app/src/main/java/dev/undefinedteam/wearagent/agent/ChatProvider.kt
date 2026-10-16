@@ -4,8 +4,13 @@ import dev.undefinedteam.wearagent.agent.providers.AnthropicProvider
 import dev.undefinedteam.wearagent.agent.providers.CompletionsProvider
 import dev.undefinedteam.wearagent.agent.providers.ResponsesProvider
 
-/** Minimal per-request config; a provider only ever needs these three. */
-data class ModelRequest(val endpoint: String, val model: String, val apiKey: String)
+/** Minimal per-request config. [insecureTls] opts this endpoint out of certificate verification. */
+data class ModelRequest(
+    val endpoint: String,
+    val model: String,
+    val apiKey: String,
+    val insecureTls: Boolean = false,
+)
 
 /** One streamed increment; a single event may carry both text and reasoning. */
 data class MessageDelta(val text: String = "", val reasoning: String = "")
@@ -61,8 +66,8 @@ interface ChatProvider {
 }
 
 /** Switching endpoint kind = switching implementation. */
-fun ChatProvider(kind: EndpointKind): ChatProvider = when (kind) {
-    EndpointKind.COMPLETIONS -> CompletionsProvider()
-    EndpointKind.RESPONSES -> ResponsesProvider()
-    EndpointKind.ANTHROPIC -> AnthropicProvider()
+fun ChatProvider(kind: EndpointKind, insecureTls: Boolean = false): ChatProvider = when (kind) {
+    EndpointKind.COMPLETIONS -> CompletionsProvider(insecureTls)
+    EndpointKind.RESPONSES -> ResponsesProvider(insecureTls)
+    EndpointKind.ANTHROPIC -> AnthropicProvider(insecureTls)
 }

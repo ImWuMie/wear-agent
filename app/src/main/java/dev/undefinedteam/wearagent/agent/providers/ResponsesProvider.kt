@@ -14,7 +14,7 @@ import org.json.JSONObject
 import java.io.IOException
 
 /** OpenAI Responses protocol (/responses, SSE item events). */
-class ResponsesProvider : SseChatClient() {
+class ResponsesProvider(insecureTls: Boolean = false) : SseChatClient(insecureTls) {
     override fun chatUrl(request: ModelRequest): String {
         val base = request.endpoint.trim().trimEnd('/')
         return if (base.endsWith(SUFFIX)) base else base + SUFFIX

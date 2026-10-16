@@ -21,6 +21,8 @@ data class EndpointProfile(
     val endpoint: String = "",
     val model: String = "",
     val apiKey: String = "",
+    /** Opt-in TLS bypass for this endpoint only; see [dev.undefinedteam.wearagent.agent.InsecureTls]. */
+    val insecureTls: Boolean = false,
 )
 
 data class AgentSettings(
@@ -28,6 +30,7 @@ data class AgentSettings(
     val imeSends: Boolean = true,
     val curvedList: Boolean = false,
     val roundFit: Boolean = true,
+    val mathFitWidth: Boolean = true,
     val language: String = "",
     val sessionId: String = "",
     val endpointId: String = "",
@@ -40,6 +43,7 @@ data class AgentSettings(
     val endpoint: String get() = active?.endpoint.orEmpty()
     val model: String get() = active?.model.orEmpty()
     val apiKey: String get() = active?.apiKey.orEmpty()
+    val insecureTls: Boolean get() = active?.insecureTls ?: false
 }
 
 class SettingsStore(private val context: Context) {
@@ -47,6 +51,7 @@ class SettingsStore(private val context: Context) {
     private val imeSendKey = booleanPreferencesKey("ime_sends")
     private val curvedListKey = booleanPreferencesKey("curved_list")
     private val roundFitKey = booleanPreferencesKey("round_fit")
+    private val mathFitWidthKey = booleanPreferencesKey("math_fit_width")
     private val webSearchEnabledKey = booleanPreferencesKey("web_search_enabled")
     private val languageKey = stringPreferencesKey("language")
     private val sessionKey = stringPreferencesKey("session_id")
@@ -60,6 +65,7 @@ class SettingsStore(private val context: Context) {
             imeSends = prefs[imeSendKey] ?: true,
             curvedList = prefs[curvedListKey] ?: false,
             roundFit = prefs[roundFitKey] ?: true,
+            mathFitWidth = prefs[mathFitWidthKey] ?: true,
             language = prefs[languageKey].orEmpty(),
             sessionId = prefs[sessionKey].orEmpty(),
             endpointId = prefs[endpointIdKey].orEmpty()
@@ -74,6 +80,8 @@ class SettingsStore(private val context: Context) {
     suspend fun setImeSends(value: Boolean) = edit { it[imeSendKey] = value }
 
     suspend fun setCurvedList(value: Boolean) = edit { it[curvedListKey] = value }
+
+    suspend fun setMathFitWidth(value: Boolean) = edit { it[mathFitWidthKey] = value }
 
     suspend fun setRoundFit(value: Boolean) = edit { it[roundFitKey] = value }
 
@@ -120,7 +128,8 @@ class SettingsStore(private val context: Context) {
                     .put("kind", profile.kind.name)
                     .put("endpoint", profile.endpoint)
                     .put("model", profile.model)
-                    .put("apiKey", profile.apiKey),
+                    .put("apiKey", profile.apiKey)
+                    .put("insecureTls", profile.insecureTls),
             )
         }
     }.toString()
@@ -143,6 +152,7 @@ class SettingsStore(private val context: Context) {
                         endpoint = item.optString("endpoint"),
                         model = item.optString("model"),
                         apiKey = item.optString("apiKey"),
+                        insecureTls = item.optBoolean("insecureTls"),
                     ),
                 )
             }

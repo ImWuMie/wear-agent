@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import dev.undefinedteam.wearagent.presentation.markdown.MarkdownText
 import dev.undefinedteam.wearagent.presentation.theme.WearAgentTheme
 import org.junit.Assert.assertArrayEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -221,5 +223,78 @@ class MarkdownTextTest {
         return IntArray(bitmap.width * bitmap.height).also {
             bitmap.getPixels(it, 0, bitmap.width, 0, 0, bitmap.width, bitmap.height)
         }
+    }
+
+    /**
+     * A formula defined via `\newcommand` must not survive into the next render: jlatexmath keeps
+     * its command table in process-wide statics, so without isolation one message could redefine
+     * commands for every message rendered afterwards.
+     */
+    @Test
+    fun newCommandDoesNotLeakIntoTheNextRender() {
+        val defining = renderFormula("\\newcommand{\\zz}{y}\\zz", 30f, MathStyle.INLINE)
+        assertNotNull("defining formula should render", defining)
+        // The command must be gone: the second formula cannot resolve \zz and renders nothing.
+        assertNull("\\zz leaked across renders", renderFormula("\\zz", 30f, MathStyle.INLINE))
+    }
+
+    /**
+     * Built-in aliases (\dfrac, \operatorname, matrix environments) register lazily on first
+     * parse. Isolating the command table must not drop them for later renders.
+     */
+    @Test
+    fun builtInAliasesSurviveAcrossRenders() {
+        assertNotNull(renderFormula("\\dfrac{1}{2}", 30f, MathStyle.INLINE))
+        assertNotNull("\\dfrac broke after isolation", renderFormula("\\dfrac{3}{4}", 30f, MathStyle.INLINE))
+        assertNotNull(renderFormula("\\operatorname{sin} x", 30f, MathStyle.INLINE))
+        assertNotNull(renderFormula("\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}", 30f, MathStyle.DISPLAY))
+    }
+
+    /**
+     * Inline formulas use TeX text style (operators compact), display formulas use display style
+     * (limits stacked). Rendering both in display style — what the stock drawable does — inflates
+     * inline formulas to block height.
+     */
+    @Test
+    fun inlineAndDisplayStylesDifferForOperators() {
+        val formula = "\\sum_{i=1}^{n} i"
+        val inline = renderFormula(formula, 30f, MathStyle.INLINE)
+        val display = renderFormula(formula, 30f, MathStyle.DISPLAY)
+        assertNotNull(inline)
+        assertNotNull(display)
+        org.junit.Assert.assertTrue(
+            "inline ${inline!!.height} should be shorter than display ${display!!.height}",
+            inline.height < display.height,
+        )
+    }
+
+    /** Scroll mode keeps a wide formula at natural width and pans it instead of scaling it down. */
+    @Test
+    fun mathFitWidthOffKeepsNaturalWidth() {
+        val formula = "a+b+c+d+e+f+g+h+i+j+k+l+m+n+o+p+q+r+s+t+u+v+w+x+y+z"
+        var densityPx = 0f
+        var sizePx = 0f
+        compose.setContent {
+            val density = LocalDensity.current
+            densityPx = density.density
+            sizePx = with(density) { 15.sp.toPx() }
+            WearAgentTheme {
+                Box(Modifier.size(120.dp, 80.dp)) {
+                    MarkdownText("\\[$formula\\]", mathFitWidth = false)
+                }
+            }
+        }
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithContentDescription(formula, useUnmergedTree = true)
+                .fetchSemanticsNodes().isNotEmpty()
+        }
+        val image = compose.onNodeWithContentDescription(formula, useUnmergedTree = true)
+            .getUnclippedBoundsInRoot()
+        val natural = compose.runOnIdle {
+            JLatexMathDrawable.builder(formula).textSize(sizePx).build().intrinsicWidth.toFloat()
+        }
+        val renderedWidthPx = (image.right - image.left).value * densityPx
+        // Natural width exceeds the 120dp viewport; the node must not have been shrunk to fit.
+        org.junit.Assert.assertTrue("formula was scaled down: ${renderedWidthPx}px", renderedWidthPx > natural * 0.9f)
     }
 }
