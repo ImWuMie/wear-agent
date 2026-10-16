@@ -3,10 +3,6 @@
     <string name="input_hint">说点什么</string>
     <string name="hero_title">有什么可以帮你？</string>
     <string name="hero_subtitle">上拉输入，向模型提问</string>
-    <string name="send">发送</string>
-    <string name="hold_to_talk">按住说</string>
-    <string name="voice_listening">聆听中…</string>
-    <string name="voice_no_speech">未检测到语音</string>
     <string name="stop">停止</string>
     <string name="thinking">思考内容</string>
     <string name="thinking_active">正在思考</string>
@@ -38,9 +34,6 @@
     <string name="lang_en">English</string>
     <string name="api_responses">Responses</string>
     <string name="api_anthropic">Anthropic</string>
-    <string name="input_mode">输入方式</string>
-    <string name="mode_keyboard">键盘</string>
-    <string name="mode_voice">语音</string>
     <string name="ime_send_now">输入法发送：直接发出</string>
     <string name="curved_list">圆屏缩放</string>
     <string name="math_fit_width">公式缩放适应宽度</string>

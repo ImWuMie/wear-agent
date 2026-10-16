@@ -26,7 +26,6 @@ data class EndpointProfile(
 )
 
 data class AgentSettings(
-    val inputMode: InputMode = InputMode.KEYBOARD,
     val imeSends: Boolean = true,
     val curvedList: Boolean = false,
     val roundFit: Boolean = true,
@@ -47,7 +46,6 @@ data class AgentSettings(
 }
 
 class SettingsStore(private val context: Context) {
-    private val inputModeKey = stringPreferencesKey("input_mode")
     private val imeSendKey = booleanPreferencesKey("ime_sends")
     private val curvedListKey = booleanPreferencesKey("curved_list")
     private val roundFitKey = booleanPreferencesKey("round_fit")
@@ -61,7 +59,6 @@ class SettingsStore(private val context: Context) {
     val settings: Flow<AgentSettings> = context.settingsDataStore.data.map { prefs ->
         val endpoints = decode(prefs[endpointsKey].orEmpty())
         AgentSettings(
-            inputMode = InputMode.fromStored(prefs[inputModeKey]),
             imeSends = prefs[imeSendKey] ?: true,
             curvedList = prefs[curvedListKey] ?: false,
             roundFit = prefs[roundFitKey] ?: true,
@@ -74,8 +71,6 @@ class SettingsStore(private val context: Context) {
             webSearchEnabled = prefs[webSearchEnabledKey] ?: false,
         )
     }
-
-    suspend fun setInputMode(mode: InputMode) = edit { it[inputModeKey] = mode.name }
 
     suspend fun setImeSends(value: Boolean) = edit { it[imeSendKey] = value }
 

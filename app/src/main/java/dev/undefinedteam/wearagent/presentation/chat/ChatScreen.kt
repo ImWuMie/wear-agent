@@ -46,7 +46,6 @@ import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
-import dev.undefinedteam.wearagent.session.VoiceState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -59,12 +58,8 @@ fun ChatScreen(
     settings: SettingsStore,
     turn: MutableStateFlow<TurnState>,
     sent: MutableStateFlow<List<ChatMessage>>,
-    voiceState: MutableStateFlow<VoiceState>,
-    voicePartial: MutableStateFlow<String>,
     onSend: (String) -> Unit,
     onStop: () -> Unit,
-    onVoicePress: () -> Unit,
-    onVoiceRelease: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -118,11 +113,11 @@ fun ChatScreen(
                 },
             )
         }
-        PullSheet(pull, inputStop, configStop, settings, turn, voiceState, voicePartial, {
+        PullSheet(pull, inputStop, configStop, settings, turn, {
             onSend(it)
             pull.floatValue = 0f
             stage = 0
-        }, onStop, onVoicePress, onVoiceRelease, {
+        }, onStop, {
             pull.floatValue = 0f
             stage = 0
             onOpenSettings()

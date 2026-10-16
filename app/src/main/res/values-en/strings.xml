@@ -4,10 +4,6 @@
     <string name="input_hint">Ask.</string>
     <string name="hero_title">How can I help?</string>
     <string name="hero_subtitle">Pull up to ask anything</string>
-    <string name="send">Send</string>
-    <string name="hold_to_talk">Hold to talk</string>
-    <string name="voice_listening">Listening…</string>
-    <string name="voice_no_speech">No speech detected</string>
     <string name="stop">Stop</string>
     <string name="thinking">Reasoning</string>
     <string name="thinking_active">Thinking</string>
@@ -39,9 +35,6 @@
     <string name="lang_en">English</string>
     <string name="api_responses">Responses</string>
     <string name="api_anthropic">Anthropic</string>
-    <string name="input_mode">Input mode</string>
-    <string name="mode_keyboard">Keyboard</string>
-    <string name="mode_voice">Voice</string>
     <string name="ime_send_now">IME send: send immediately</string>
     <string name="curved_list">Round-screen scaling</string>
     <string name="math_fit_width">Scale formulas to fit width</string>
