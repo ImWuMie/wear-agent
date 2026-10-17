@@ -16,6 +16,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.lifecycleScope
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.agent.AgentService
+import dev.undefinedteam.wearagent.agent.ImageAttachment
 import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.presentation.LocaleHelper
 import dev.undefinedteam.wearagent.presentation.settings.SettingsActivity
@@ -120,8 +121,8 @@ class MainActivity : ComponentActivity() {
         super.onPause()
     }
 
-    private fun send(text: String) {
-        if (text.isBlank() || service?.state?.value?.running == true) return
+    private fun send(text: String, images: List<ImageAttachment>) {
+        if ((text.isBlank() && images.isEmpty()) || service?.state?.value?.running == true) return
         val log = SessionLog(this)
         val settings = SettingsStore(this)
         lifecycleScope.launch {
@@ -135,7 +136,10 @@ class MainActivity : ComponentActivity() {
             val sessionId =
                 config.sessionId.ifBlank { log.create().also { settings.setSession(it) } }
             val id = (log.load(sessionId).maxOfOrNull { it.id } ?: 0L) + 1L
-            log.append(sessionId, ChatMessage(id, userMessage = true, text = text.trim()))
+            log.append(
+                sessionId,
+                ChatMessage(id, userMessage = true, text = text.trim(), images = images),
+            )
             sent.value = log.load(sessionId)
             ContextCompat.startForegroundService(
                 this@MainActivity,

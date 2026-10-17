@@ -2,6 +2,9 @@ package dev.undefinedteam.wearagent.presentation.chat
 
 import android.content.Intent
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -10,17 +13,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,22 +28,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material3.HorizontalPageIndicator
 import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.MaterialTheme
-import androidx.wear.compose.material3.Text
-import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.agent.AgentService
 import dev.undefinedteam.wearagent.agent.TurnState
+import dev.undefinedteam.wearagent.agent.ImageAttachment
 import dev.undefinedteam.wearagent.agent.tools.defaultTools
 import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
+import dev.undefinedteam.wearagent.presentation.chat.images.encodePickedImages
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -61,7 +55,7 @@ fun ChatScreen(
     settings: SettingsStore,
     turn: MutableStateFlow<TurnState>,
     sent: MutableStateFlow<List<ChatMessage>>,
-    onSend: (String) -> Unit,
+    onSend: (String, List<ImageAttachment>) -> Unit,
     onStop: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
@@ -91,6 +85,17 @@ fun ChatScreen(
     val contextWindow = agentSettings.contextWindow
     val systemPrompt = agentSettings.effectiveSystemPrompt
     val pager = rememberPagerState(pageCount = { 3 })
+    // Images staged for the next send live here, not in the drawer: the picker
+    // launcher is a composition-level concern and its result must outlive the
+    // drawer being pulled shut.
+    var attachments by remember { mutableStateOf(emptyList<ImageAttachment>()) }
+    val pickImages = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED_IMAGES),
+    ) { uris ->
+        if (uris.isNotEmpty()) scope.launch {
+            attachments = attachments + encodePickedImages(activity, uris)
+        }
+    }
 
     // The service appends the finished assistant message to the log; `sent` only
     // tracks sends, so it goes stale after every turn. Refresh it when a turn
@@ -147,10 +152,17 @@ fun ChatScreen(
                 },
             )
         }
-        PullSheet(pull, inputStop, configStop, settings, turn, {
-            onSend(it)
+        PullSheet(pull, inputStop, configStop, settings, turn, { text, images ->
+            onSend(text, images)
+            attachments = emptyList()
             pull.floatValue = 0f
             stage = 0
+        }, attachments, { attachments = it }, { index ->
+            attachments = attachments.toMutableList().also { it.removeAt(index) }
+        }, {
+            pickImages.launch(
+                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+            )
         }, onStop, {
             pull.floatValue = 0f
             stage = 0
@@ -223,84 +235,5 @@ fun ChatScreen(
     }
 }
 
-@Composable
-private fun MessageList(
-    log: SessionLog,
-    settings: SettingsStore,
-    turn: MutableStateFlow<TurnState>,
-    sent: MutableStateFlow<List<ChatMessage>>,
-    columnState: LazyListState,
-    onSelect: (ChatMessage) -> Unit,
-    focusId: Long? = null,
-) {
-    val persisted by sent.collectAsStateWithLifecycle(initialValue = emptyList())
-    val turnState by turn.collectAsStateWithLifecycle()
-    val sessionId = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.sessionId
-    val messages = remember(persisted, turnState.running, sessionId) {
-        if (turnState.running) persisted else log.load(sessionId).ifEmpty { persisted }
-    }
-    val curved = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.curvedList
-    val roundFit = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.roundFit
-    val mathFitWidth = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.mathFitWidth
-    if (messages.isEmpty() && !turnState.running) {
-        // Empty session: hero title + input hint, like the reference layout
-        EmptyChatHero()
-        return
-    }
-    if (curved) {
-        CurvedMessages(messages, turnState, onSelect, roundFit, mathFitWidth, focusId)
-        return
-    }
-    // A jump request from the request view wins over the follow-the-tail effect.
-    LaunchedEffect(focusId) {
-        val index = focusId?.let { id -> messages.indexOfFirst { it.id == id } } ?: -1
-        if (index >= 0) columnState.animateScrollToItem(index)
-    }
-    LaunchedEffect(messages.size, turnState.running, focusId) {
-        if (focusId != null) return@LaunchedEffect
-        val target = messages.lastIndex + if (turnState.live) 1 else 0
-        if (target >= 0) columnState.scrollToItem(target)
-    }
-    LazyColumn(
-        Modifier.fillMaxSize(),
-        state = columnState,
-        contentPadding = PaddingValues(top = 36.dp, bottom = 72.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        items(messages, key = { it.id }) { message ->
-            Column {
-                Bubble(
-                    message,
-                    roundFit = roundFit,
-                    mathFitWidth = mathFitWidth,
-                    onLongPress = { onSelect(message) },
-                )
-            }
-        }
-        if (turnState.live) item { LiveBubble(turnState, roundFit, mathFitWidth) }
-    }
-}
-
-/** Empty-session welcome page: centered hero title and subtitle only. */
-@Composable
-private fun EmptyChatHero() {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .padding(bottom = 72.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Text(
-            stringResource(R.string.hero_title),
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            stringResource(R.string.hero_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
+/** How many images one pick may return; the drawer's strip shows them all. */
+private const val MAX_PICKED_IMAGES = 10

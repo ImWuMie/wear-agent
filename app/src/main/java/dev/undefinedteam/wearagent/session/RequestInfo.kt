@@ -21,6 +21,8 @@ data class RequestEntry(
     val result: String = "",
     val status: RequestStatus? = null,
     val elapsedMs: Long = 0,
+    /** Attached image count for a user row; 0 when there are none. */
+    val images: Int = 0,
     /**
      * Chat message this row jumps back to: the row's own message for a user line,
      * and the user message that started the turn for an assistant or tool line.
@@ -38,7 +40,7 @@ fun expandHistory(messages: List<ChatMessage>): List<TranscriptItem> = buildList
         if (!message.userMessage && message.transcript.isNotEmpty()) {
             addAll(message.transcript)
         } else {
-            add(TranscriptItem.Text(message.userMessage, message.text))
+            add(TranscriptItem.Text(message.userMessage, message.text, message.images))
         }
     }
 }
@@ -61,6 +63,7 @@ fun describeRequest(messages: List<ChatMessage>): List<RequestEntry> = buildList
                     preview = oneLine(message.text),
                     payload = message.text,
                     elapsedMs = message.elapsedMs,
+                    images = message.images.size,
                     messageId = if (message.userMessage) message.id else turnUserId,
                 )
             )
@@ -94,6 +97,7 @@ fun describeRequest(messages: List<ChatMessage>): List<RequestEntry> = buildList
                         if (item.userMessage) RequestRole.USER else RequestRole.ASSISTANT,
                         preview = oneLine(item.text),
                         payload = item.text,
+                        images = item.images.size,
                         messageId = if (item.userMessage) message.id else turnUserId,
                     )
                 )

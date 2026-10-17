@@ -80,6 +80,12 @@
     <string name="trajectory_jump">跳到该消息</string>
     <string name="trajectory_payload">请求</string>
     <string name="trajectory_result">结果</string>
+    <string name="save_to_gallery">保存到相册</string>
+    <string name="saved_to_gallery">已保存</string>
+    <string name="save_failed">保存失败</string>
+    <string name="close_preview">关闭</string>
+    <string name="image_preview">图片预览</string>
+    <string name="trajectory_images">图片 ×%1$d</string>
     <string name="view_request">查看请求信息</string>
     <string name="rewind_here">回退到此处</string>
     <string name="fetch_tool">抓取网页</string>

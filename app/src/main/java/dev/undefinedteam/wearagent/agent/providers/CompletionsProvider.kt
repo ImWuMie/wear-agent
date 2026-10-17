@@ -2,6 +2,7 @@ package dev.undefinedteam.wearagent.agent.providers
 
 import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.EndpointKind
+import dev.undefinedteam.wearagent.agent.supportedImages
 import dev.undefinedteam.wearagent.agent.Message
 import dev.undefinedteam.wearagent.agent.MessageDelta
 import dev.undefinedteam.wearagent.agent.SseChatClient
@@ -75,7 +76,8 @@ class CompletionsProvider(insecureTls: Boolean = false) : SseChatClient(insecure
                     JSONObject().put(
                         "role",
                         if (item.userMessage) "user" else "assistant"
-                    ).put("content", item.text)
+
+                    ).put("content", textContent(item))
                 )
 
                 is TranscriptItem.Assistant -> {
@@ -238,5 +240,25 @@ class CompletionsProvider(insecureTls: Boolean = false) : SseChatClient(insecure
     companion object {
         private val KIND = EndpointKind.COMPLETIONS
         private const val SUFFIX = "/chat/completions"
+    }
+}
+
+/**
+ * OpenAI chat content: a plain string, or a part array when images are attached.
+ * Only user turns carry images; an assistant text item stays a string.
+ */
+private fun textContent(item: TranscriptItem.Text): Any {
+    val images = item.images.supportedImages()
+    if (!item.userMessage || images.isEmpty()) return item.text
+    return JSONArray().apply {
+        if (item.text.isNotBlank()) put(JSONObject().put("type", "text").put("text", item.text))
+        images.forEach { image ->
+            put(
+                JSONObject().put("type", "image_url").put(
+                    "image_url",
+                    JSONObject().put("url", "data:${image.mediaType};base64,${image.base64}")
+                )
+            )
+        }
     }
 }

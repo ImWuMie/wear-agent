@@ -1,5 +1,6 @@
 package dev.undefinedteam.wearagent.session
 
+import dev.undefinedteam.wearagent.agent.ImageAttachment
 import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.agent.TranscriptItem
@@ -84,6 +85,19 @@ class ContextBreakdownTest {
             window = 8_000,
         )
         assertEquals(0, tokensOf(segments, ContextKind.FREE))
+    }
+
+    @Test fun attachedImagesCountTowardTheMessageSlice() {
+        val withImage = contextBreakdown(
+            listOf(ChatMessage(1, true, "hi", images = listOf(ImageAttachment("image/png", "AAAA")))),
+            emptyList(),
+            window = 32_000,
+        )
+        val withoutImage = contextBreakdown(listOf(user(1, "hi")), emptyList(), window = 32_000)
+        assertTrue(
+            tokensOf(withImage, ContextKind.MESSAGES) > tokensOf(withoutImage, ContextKind.MESSAGES),
+        )
+        assertEquals(32_000, withImage.sumOf { it.tokens })
     }
 
     @Test fun emptyInputIsAllFreeSpace() {

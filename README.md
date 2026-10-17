@@ -17,6 +17,7 @@ A lightweight AI chat client for Wear OS round-screen watches. Talk to any OpenA
 
 - **Streaming chat** — SSE streaming for OpenAI Completions / Responses and Anthropic Messages APIs
 - **Thinking traces** — reasoning models stream their chain of thought into a collapsible block inside the reply bubble; it auto-expands while thinking, auto-collapses when the body starts, and is persisted with the message
+- **Image input** — pick photos with the system picker, no permission needed; each is downscaled to a 1024px JPEG before sending and encoded into each protocol's own inline format (Completions `image_url`, Responses `input_image`, Anthropic base64 `image` block). Attachments render as two-up thumbnails in the bubble and count toward the context bar. Tap one for a full-screen preview: double-tap to zoom (animated), pinch to scale, drag to pan, long-press to save it to the gallery. Images are stored as files under `files/images/`, keyed by content, with the session line holding only a reference — deleting a session prunes the images nothing else uses
 - **Markdown + LaTeX** — CommonMark with GFM tables/strikethrough; `$..$`, `$$..$$`, `\(..\)` and `\[..\]` formulas rendered inline or as blocks via JLaTeXMath, with literal dollars and code spans left untouched
 - **Token usage** — each reply shows `↓ out, ↑ in (cached) · t/s`
 - **Message actions** — long-press a bubble for a fullscreen action page: copy, select text, regenerate (works on user messages too), edit, delete

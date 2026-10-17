@@ -7,6 +7,7 @@ import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.TranscriptCodec
 import dev.undefinedteam.wearagent.agent.EndpointKind
+import dev.undefinedteam.wearagent.agent.ImageAttachment
 import dev.undefinedteam.wearagent.agent.TranscriptItem
 import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.agent.tools.web.WebSearchTool
@@ -320,6 +321,117 @@ class ChatProviderTest {
         val result = provider(EndpointKind.COMPLETIONS).stream(request(EndpointKind.COMPLETIONS), emptyList(), onDelta = { chunks.add(it.text) })
         assertEquals(listOf("Hello"), chunks)
         assertEquals(TokensUsage(2, 0, 1), result.tokens)
+    }
+
+    @Test fun attachedImagesEncodePerProtocolAndUnsupportedOnesAreDropped() {
+        val png = ImageAttachment("image/png", "AAAA")
+        val vector = ImageAttachment("image/svg+xml", "BBBB")
+        for (kind in EndpointKind.values()) {
+            enqueue(finalText(kind, "Seen"))
+            provider(kind).stream(
+                request(kind),
+                listOf(TranscriptItem.Text(true, "Look", listOf(png, vector))),
+                onDelta = {},
+            )
+            val body = requestBody()
+            // The supported image is inlined; the one no protocol accepts is dropped
+            // rather than risking a rejected request.
+            assertTrue(body.toString().contains("AAAA"))
+            assertFalse(body.toString().contains("BBBB"))
+            when (kind) {
+                EndpointKind.COMPLETIONS -> {
+                    val content = body.getJSONArray("messages").getJSONObject(0).getJSONArray("content")
+                    assertEquals(2, content.length())
+                    assertEquals("text", content.getJSONObject(0).getString("type"))
+                    assertEquals("Look", content.getJSONObject(0).getString("text"))
+                    assertEquals("image_url", content.getJSONObject(1).getString("type"))
+                    assertEquals(
+                        "data:image/png;base64,AAAA",
+                        content.getJSONObject(1).getJSONObject("image_url").getString("url"),
+                    )
+                }
+
+                EndpointKind.RESPONSES -> {
+                    val content = body.getJSONArray("input").getJSONObject(0).getJSONArray("content")
+                    assertEquals(2, content.length())
+                    assertEquals("input_text", content.getJSONObject(0).getString("type"))
+                    assertEquals("Look", content.getJSONObject(0).getString("text"))
+                    assertEquals("input_image", content.getJSONObject(1).getString("type"))
+                    assertEquals("data:image/png;base64,AAAA", content.getJSONObject(1).getString("image_url"))
+                }
+
+                EndpointKind.ANTHROPIC -> {
+                    val content = body.getJSONArray("messages").getJSONObject(0).getJSONArray("content")
+                    assertEquals(2, content.length())
+                    assertEquals("text", content.getJSONObject(0).getString("type"))
+                    val image = content.getJSONObject(1)
+                    assertEquals("image", image.getString("type"))
+                    assertEquals("base64", image.getJSONObject("source").getString("type"))
+                    assertEquals("image/png", image.getJSONObject("source").getString("media_type"))
+                    assertEquals("AAAA", image.getJSONObject("source").getString("data"))
+                }
+            }
+        }
+    }
+
+    @Test fun imageFreeTextStaysAPlainStringForEveryProtocol() {
+        for (kind in EndpointKind.values()) {
+            enqueue(finalText(kind, "Hello"))
+            provider(kind).stream(request(kind), listOf(TranscriptItem.Text(true, "Hi")), onDelta = {})
+            val body = requestBody()
+            when (kind) {
+                EndpointKind.COMPLETIONS -> assertEquals("Hi", body.getJSONArray("messages").getJSONObject(0).getString("content"))
+                EndpointKind.RESPONSES -> assertEquals("Hi", body.getJSONArray("input").getJSONObject(0).getString("content"))
+                EndpointKind.ANTHROPIC -> assertEquals("Hi", body.getJSONArray("messages").getJSONObject(0)
+                    .getJSONArray("content").getJSONObject(0).getString("text"))
+            }
+        }
+    }
+
+    @Test fun multipleImagesKeepTheirOrderInEveryProtocol() {
+        val images = listOf(
+            ImageAttachment("image/png", "FIRST"),
+            ImageAttachment("image/jpeg", "SECOND"),
+            ImageAttachment("image/webp", "THIRD"),
+        )
+        for (kind in EndpointKind.values()) {
+            enqueue(finalText(kind, "Seen"))
+            provider(kind).stream(
+                request(kind),
+                listOf(TranscriptItem.Text(true, "Compare", images)),
+                onDelta = {},
+            )
+            val body = requestBody()
+            val payloads = when (kind) {
+                EndpointKind.COMPLETIONS -> body.getJSONArray("messages").getJSONObject(0)
+                    .getJSONArray("content")
+                    .let { content -> List(content.length() - 1) { content.getJSONObject(it + 1) } }
+                    .map { it.getJSONObject("image_url").getString("url") }
+
+                EndpointKind.RESPONSES -> body.getJSONArray("input").getJSONObject(0)
+                    .getJSONArray("content")
+                    .let { content -> List(content.length() - 1) { content.getJSONObject(it + 1) } }
+                    .map { it.getString("image_url") }
+
+                EndpointKind.ANTHROPIC -> body.getJSONArray("messages").getJSONObject(0)
+                    .getJSONArray("content")
+                    .let { content -> List(content.length() - 1) { content.getJSONObject(it + 1) } }
+                    .map { it.getJSONObject("source").getString("data") }
+            }
+            assertEquals(3, payloads.size)
+            assertTrue(payloads[0].endsWith("FIRST"))
+            assertTrue(payloads[1].endsWith("SECOND"))
+            assertTrue(payloads[2].endsWith("THIRD"))
+        }
+    }
+
+    @Test fun imagesRoundTripThroughTheTranscriptCodec() {
+        val history = listOf(
+            TranscriptItem.Text(true, "Look", listOf(ImageAttachment("image/png", "AAAA"))),
+            TranscriptItem.Assistant("Seen"),
+        )
+        val decoded = TranscriptCodec.decode(JSONArray(TranscriptCodec.encode(history).toString()))
+        assertEquals(history, decoded)
     }
 
     @Test fun providerFailuresAreNotReturnedAsSuccessfulPartialAnswers() {

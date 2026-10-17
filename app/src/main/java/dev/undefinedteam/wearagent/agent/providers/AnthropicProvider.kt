@@ -2,6 +2,7 @@ package dev.undefinedteam.wearagent.agent.providers
 
 import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.EndpointKind
+import dev.undefinedteam.wearagent.agent.supportedImages
 import dev.undefinedteam.wearagent.agent.Message
 import dev.undefinedteam.wearagent.agent.MessageDelta
 import dev.undefinedteam.wearagent.agent.SseChatClient
@@ -103,10 +104,7 @@ class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
             when (item) {
                 is TranscriptItem.Text -> {
                     val role = if (item.userMessage) "user" else "assistant"
-                    anthropicMessage(
-                        role,
-                        JSONArray().put(JSONObject().put("type", "text").put("text", item.text))
-                    )
+                    anthropicMessage(role, anthropicBlocks(item))
                 }
 
                 is TranscriptItem.Assistant -> {
@@ -270,5 +268,28 @@ class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
 
     companion object {
         private const val SUFFIX = "/messages"
+    }
+}
+
+/**
+ * Anthropic content blocks: a text block, plus one base64 image block per
+ * supported attachment. Only user turns carry images.
+ */
+private fun anthropicBlocks(item: TranscriptItem.Text): JSONArray {
+    val images = if (item.userMessage) item.images.supportedImages() else emptyList()
+    return JSONArray().apply {
+        // Always emit the text block, even when empty: the no-image path must
+        // stay byte-identical to the previous behaviour.
+        put(JSONObject().put("type", "text").put("text", item.text))
+        images.forEach { image ->
+            put(
+                JSONObject().put("type", "image").put(
+                    "source",
+                    JSONObject().put("type", "base64")
+                        .put("media_type", image.mediaType)
+                        .put("data", image.base64)
+                )
+            )
+        }
     }
 }

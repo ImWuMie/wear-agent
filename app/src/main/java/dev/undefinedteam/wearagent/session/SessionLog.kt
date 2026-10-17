@@ -10,12 +10,15 @@ import java.io.File
  * One JSON object per line (JSONL):
  * `{"id":1,"role":"user","text":"...","reasoning":"","prompt":0,"cached":0,"completion":0,"ms":0}`.
  * Assistant records may also include a protocol `transcript` array for tool/native replay.
+ * User records may also include an `images` array of `{name}` references into ImageStore.
  * Append-only; a killed process replays the file, nothing lives only in memory.
  * Legacy TSV `.txt` sessions are migrated to `.jsonl` on first access.
  */
 class SessionLog(context: Context) {
     private val appContext = context.applicationContext
     private val directory = File(appContext.filesDir, "sessions").apply { mkdirs() }
+    private val images = ImageStore(File(appContext.filesDir, "images"))
+    private val imageCodec = StoredImages(images)
 
     fun sessions(): List<SessionInfo> {
         return directory.listFiles { file -> file.extension == "jsonl" }
@@ -31,8 +34,14 @@ class SessionLog(context: Context) {
     }
 
     fun create(): String {
-        val id = System.currentTimeMillis().toString()
-        File(directory, "$id.jsonl").createNewFile()
+        var id = System.currentTimeMillis().toString()
+        var file = file(id)
+        // Two sessions created in the same millisecond would otherwise share one
+        // file, silently merging them; bump until the name is actually free.
+        while (!file.createNewFile()) {
+            id = (id.toLong() + 1).toString()
+            file = file(id)
+        }
         return id
     }
 
@@ -51,6 +60,7 @@ class SessionLog(context: Context) {
     fun deleteSession(id: String) {
         if (id.isBlank()) return
         file(id).delete()
+        prune()
     }
 
     fun deleteMessage(sessionId: String, messageId: Long) {
@@ -82,7 +92,26 @@ class SessionLog(context: Context) {
     private fun write(sessionId: String, messages: List<ChatMessage>) {
         if (sessionId.isBlank()) return
         file(sessionId).writeText(messages.joinToString("") { encode(it) + "\n" })
+        // A truncated session may have dropped the only reference to an image;
+        // prune after the record is durable so a crash cannot lose both.
+        prune()
     }
+
+    /** Drops every stored image no session references any more. */
+    private fun prune() {
+        images.retain(
+            directory.listFiles { file -> file.extension == "jsonl" }.orEmpty().map { file ->
+                SessionImages(file.nameWithoutExtension, referencedImages(file))
+            },
+        )
+    }
+
+    /** The image names [file] still references, read without decoding whole messages. */
+    private fun referencedImages(file: File): List<String> = file.readLines().flatMap { line ->
+        val json = runCatching { JSONObject(line) }.getOrNull() ?: return@flatMap emptyList()
+        val array = json.optJSONArray("images") ?: return@flatMap emptyList()
+        List(array.length()) { array.optJSONObject(it)?.optString("name").orEmpty() }
+    }.filter { it.isNotEmpty() }
 
     private fun file(id: String) = File(directory, "$id.jsonl")
 
@@ -92,6 +121,9 @@ class SessionLog(context: Context) {
         json.put("role", if (message.userMessage) "user" else "assistant")
         json.put("text", message.text)
         json.put("reasoning", message.reasoning)
+        if (message.images.isNotEmpty()) {
+            json.put("images", TranscriptCodec.encodeImages(message.images, imageCodec))
+        }
         message.tokens?.let {
             json.put("prompt", it.prompt)
             json.put("cached", it.cached)
@@ -110,6 +142,7 @@ class SessionLog(context: Context) {
             json.getLong("id"),
             json.getString("role") == "user",
             json.getString("text"),
+            TranscriptCodec.decodeImages(json.optJSONArray("images"), imageCodec),
             json.optString("reasoning"),
             if (json.has("prompt") || json.has("cached") || json.has("completion")) TokensUsage(
                 json.optInt("prompt"),

@@ -36,7 +36,10 @@ flowchart LR
 - `agent/` — protocol and turn logic. `ChatProvider` defines the interface; `providers/` holds one
   SSE implementation per protocol, all extending `SseChatClient` (HTTP, cancellation, SSE framing,
   model-list retry). `ToolLoop` runs one turn across multiple tool rounds. `Transcript` is the
-  provider-agnostic history model; each provider converts it to its own wire format.
+  provider-agnostic history model; each provider converts it to its own wire format. User turns may
+  carry `ImageAttachment`s (base64 + media type): each provider encodes them into its own inline
+  format, and `supportedImages()` is the shared filter that drops a media type no protocol accepts
+  rather than failing the whole request.
 - `agent/tools/` — model-callable tools, mirroring the provider shape: an `interface Tool`, an
   `abstract class HttpTool`, and a `defaultTools()` registry.
   - `Tool` is the contract the loop depends on: `definition`, optional `setting`/`enabledBy` for the
@@ -67,8 +70,25 @@ flowchart LR
     `settings` flow. A preference whose absence is meaningful (a list the user can empty) must
     distinguish "unset" from "empty" — `systemPrompts` does this by checking whether the key is
     present, so deleting every prompt does not resurrect a default.
+  - Message images are stored as files, not inline: `ImageStore` writes them content-addressed
+    under `files/images/` and the JSONL line keeps a `{name}` reference, so a line stays small and
+    a conversation loads without megabytes of base64. `SessionLog` prunes unreferenced files after
+    every write and on session delete, so removing a session reclaims its images. `ImageCodec` is
+    the seam: `StoredImages` writes references, `InlineImages` keeps the old self-contained form
+    and is what `TranscriptCodec` defaults to, so a record written before the store still loads.
 - `presentation/` — Wear Compose UI. `chat/` (screen, pull-up drawer, bubbles, action sheets),
   `markdown/` (renderer), `settings/` (page registry + pages).
+  - `chat/` splits by layer: the screen (`ChatScreen`, `MainActivity`, `ChatPager`), the message
+    surface (`MessageList` — the curved list — `MessageBubble`, `MessageBlocks` — tool/reasoning/usage
+    blocks — `MessageSheets`), the drawer (`PullSheet`, `SheetChrome`), and two subpackages:
+    `chat/pages/` (`ContextPage`, `TrajectoryPage` — the pager's info pages) and `chat/images/`
+    (`ImagePreview` — shared decode plus the full-screen preview — `ImageStrip`, `AttachmentStrip`,
+    `PickedImages`, `GallerySaver`). Splitting a piece out of `chat/` means widening `private fun` to
+    `internal fun`; keep that the only API widening.
+  - `chat/ImagePreview.kt` holds what every image surface shares: `decodeImage`, the
+    off-thread `rememberDecodedImages`, the 64dp/two-up `THUMBNAIL` constants, and the
+    full-screen `ImagePreviewDialog` (double-tap zoom, pinch, pan, long-press menu built
+    from the same `ActionPageButton` as the message sheet, back to dismiss).
   - The chat is a three-page `HorizontalPager` (`ChatPager`): the conversation, the context usage,
     and the request trajectory. A long-press sheet's "view request" pages to the trajectory, which
     renders `session/describeRequest` — one row per user/assistant/tool item with a role chip and a

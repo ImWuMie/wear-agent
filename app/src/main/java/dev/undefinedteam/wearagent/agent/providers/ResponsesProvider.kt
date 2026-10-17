@@ -2,6 +2,7 @@ package dev.undefinedteam.wearagent.agent.providers
 
 import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.EndpointKind
+import dev.undefinedteam.wearagent.agent.supportedImages
 import dev.undefinedteam.wearagent.agent.Message
 import dev.undefinedteam.wearagent.agent.MessageDelta
 import dev.undefinedteam.wearagent.agent.SseChatClient
@@ -77,7 +78,7 @@ class ResponsesProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
                 is TranscriptItem.Text -> array.put(
                     JSONObject()
                         .put("role", if (item.userMessage) "user" else "assistant")
-                        .put("content", item.text)
+                        .put("content", responseContent(item))
                 )
 
                 is TranscriptItem.Assistant -> {
@@ -260,5 +261,27 @@ class ResponsesProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
 
     companion object {
         private const val SUFFIX = "/responses"
+    }
+}
+
+/**
+ * Responses input content: a plain string, or a part array when images are
+ * attached. Only user turns carry images; an assistant text item stays a string.
+ */
+private fun responseContent(item: TranscriptItem.Text): Any {
+    val images = item.images.supportedImages()
+    if (!item.userMessage || images.isEmpty()) return item.text
+    return JSONArray().apply {
+        if (item.text.isNotBlank()) {
+            put(JSONObject().put("type", "input_text").put("text", item.text))
+        }
+        images.forEach { image ->
+            put(
+                JSONObject().put("type", "input_image").put(
+                    "image_url",
+                    "data:${image.mediaType};base64,${image.base64}"
+                )
+            )
+        }
     }
 }

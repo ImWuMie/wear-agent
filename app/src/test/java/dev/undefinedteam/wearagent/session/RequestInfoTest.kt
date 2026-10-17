@@ -1,6 +1,7 @@
 package dev.undefinedteam.wearagent.session
 
 import dev.undefinedteam.wearagent.agent.EndpointKind
+import dev.undefinedteam.wearagent.agent.ImageAttachment
 import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.TranscriptItem
 import org.junit.Assert.assertEquals
@@ -140,6 +141,20 @@ class RequestInfoTest {
         assertTrue(entries[0].preview.endsWith("…"))
         // The full text stays available for the expanded payload.
         assertTrue(entries[0].payload.contains(long))
+    }
+
+    @Test fun attachedImagesFlowIntoHistoryAndTheTrajectoryRow() {
+        val image = ImageAttachment("image/png", "AAAA")
+        val message = ChatMessage(1, true, "看这个", images = listOf(image))
+        val history = expandHistory(listOf(message))
+        assertEquals(listOf(image), (history.single() as TranscriptItem.Text).images)
+        val entry = describeRequest(listOf(message)).single()
+        assertEquals(1, entry.images)
+        assertEquals("看这个", entry.payload)
+    }
+
+    @Test fun textOnlyMessagesReportNoImages() {
+        assertEquals(0, describeRequest(listOf(user(1, "hi"))).single().images)
     }
 
     @Test fun rewindDropsTheMessageAndEverythingAfter() {

@@ -81,6 +81,12 @@
     <string name="trajectory_jump">Jump to message</string>
     <string name="trajectory_payload">Payload</string>
     <string name="trajectory_result">Result</string>
+    <string name="save_to_gallery">Save to gallery</string>
+    <string name="saved_to_gallery">Saved</string>
+    <string name="save_failed">Save failed</string>
+    <string name="close_preview">Close</string>
+    <string name="image_preview">Image preview</string>
+    <string name="trajectory_images">Images ×%1$d</string>
     <string name="view_request">View request</string>
     <string name="rewind_here">Rewind to here</string>
     <string name="fetch_tool">Fetch</string>

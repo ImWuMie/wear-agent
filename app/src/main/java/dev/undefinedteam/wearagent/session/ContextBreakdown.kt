@@ -30,7 +30,7 @@ fun contextBreakdown(
     var messageChars = 0
     expandHistory(messages).forEach { item ->
         when (item) {
-            is TranscriptItem.Text -> messageChars += item.text.length
+            is TranscriptItem.Text -> messageChars += item.text.length + item.images.sumOf { IMAGE_CHARS }
 
             is TranscriptItem.Assistant -> {
                 messageChars += item.text.length
@@ -55,6 +55,13 @@ fun contextBreakdown(
 
 /** Rough token count for a character count; ~4 characters per token. */
 private fun charsToTokens(chars: Int): Int = if (chars <= 0) 0 else (chars + 3) / 4
+
+/**
+ * Characters attributed to one attached image. Providers bill an inline image
+ * by its dimensions, not its payload, so the base64 length would grossly
+ * overstate the cost; this is a deliberately rough, fixed estimate.
+ */
+private const val IMAGE_CHARS = 1000
 
 /**
  * Scales [segments] so they sum to [total], keeping their proportions. Rounding
