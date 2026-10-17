@@ -95,7 +95,10 @@ internal fun ContextPage(
                 if (last?.elapsedMs?.let { it > 0 } == true) {
                     item {
                         TransformedItem(this, spec) {
-                            UsageRow(stringResource(R.string.context_elapsed), "${last.elapsedMs} ms")
+                            UsageRow(
+                                stringResource(R.string.context_elapsed),
+                                "${last.elapsedMs} ms"
+                            )
                         }
                     }
                 }

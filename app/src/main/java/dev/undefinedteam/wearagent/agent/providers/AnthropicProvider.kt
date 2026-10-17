@@ -1,15 +1,15 @@
 package dev.undefinedteam.wearagent.agent.providers
 
-import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.EndpointKind
-import dev.undefinedteam.wearagent.agent.supportedImages
 import dev.undefinedteam.wearagent.agent.Message
 import dev.undefinedteam.wearagent.agent.MessageDelta
+import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.SseChatClient
 import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.agent.TranscriptItem
+import dev.undefinedteam.wearagent.agent.supportedImages
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -38,15 +38,30 @@ class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
             .put("max_tokens", 1024)
             .put("messages", messages(history))
         if (request.systemPrompt.isNotBlank()) {
-            root.put("system", request.systemPrompt)
+            // Anthropic caches only what is explicitly marked, and a breakpoint covers
+            // the whole prefix before it. The system prompt plus the tool schemas are
+            // the stable prefix every round repeats, so the last tool carries the mark
+            // and the conversation behind it is cached with it.
+            root.put(
+                "system",
+                JSONArray().put(
+                    JSONObject().put("type", "text").put("text", request.systemPrompt)
+                        .put("cache_control", EPHEMERAL),
+                ),
+            )
         }
         if (tools.isNotEmpty()) {
             root.put("tools", JSONArray().also { array ->
-                tools.forEach { tool ->
+                tools.forEachIndexed { index, tool ->
                     array.put(
                         JSONObject().put("name", tool.name)
                             .put("description", tool.description)
                             .put("input_schema", JSONObject(tool.parameterSchema))
+                            .apply {
+                                // A breakpoint covers everything before it, so marking the
+                                // last definition caches the system prompt and every schema.
+                                if (index == tools.lastIndex) put("cache_control", EPHEMERAL)
+                            }
                     )
                 }
             })
@@ -137,7 +152,24 @@ class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
                 )
             }
         }
+        markConversationPrefix(array)
         return array
+    }
+
+    /**
+     * Marks the conversation's tail so the whole prefix behind it is cached. Together
+     * with the system and tool breakpoints that is three of Anthropic's four, and the
+     * conversation one is what makes a follow-up round read instead of re-write.
+     *
+     * Skipped for a single user turn: that prefix is only the system and tool blocks,
+     * which the earlier breakpoints already cover.
+     */
+    private fun markConversationPrefix(array: JSONArray) {
+        if (array.length() < 2) return
+        val last = array.optJSONObject(array.length() - 1) ?: return
+        val content = last.optJSONArray("content") ?: return
+        val tail = content.optJSONObject(content.length() - 1) ?: return
+        tail.put("cache_control", EPHEMERAL)
     }
 
     private class AnthropicState(private val onDelta: (MessageDelta) -> Unit) : StreamState {
@@ -178,7 +210,13 @@ class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
                             .let { append(block, "text", it); onDelta(MessageDelta(text = it)) }
 
                         "thinking_delta" -> delta.optString("thinking")
-                            .let { append(block, "thinking", it); onDelta(MessageDelta(reasoning = it)) }
+                            .let {
+                                append(
+                                    block,
+                                    "thinking",
+                                    it
+                                ); onDelta(MessageDelta(reasoning = it))
+                            }
 
                         "signature_delta" -> append(
                             block,
@@ -206,7 +244,8 @@ class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
             if (value.has("input_tokens")) input = value.optInt("input_tokens")
             if (value.has("cache_creation_input_tokens")) cacheCreation =
                 value.optInt("cache_creation_input_tokens")
-            if (value.has("cache_read_input_tokens")) cacheRead = value.optInt("cache_read_input_tokens")
+            if (value.has("cache_read_input_tokens")) cacheRead =
+                value.optInt("cache_read_input_tokens")
             if (value.has("output_tokens")) outputTokens = value.optInt("output_tokens")
             usage = TokensUsage(input + cacheCreation + cacheRead, cacheRead, outputTokens)
         }
@@ -293,3 +332,6 @@ private fun anthropicBlocks(item: TranscriptItem.Text): JSONArray {
         }
     }
 }
+
+/** Anthropic's only cache mode: a 5-minute breakpoint at this position. */
+private val EPHEMERAL = JSONObject().put("type", "ephemeral")

@@ -77,7 +77,7 @@ fun describeRequest(messages: List<ChatMessage>): List<RequestEntry> = buildList
         // carries no assistant text. Emitting both duplicated a single round.
         val transcriptHasAssistantText = message.transcript.any {
             (it is TranscriptItem.Assistant && it.text.isNotBlank()) ||
-                (it is TranscriptItem.Text && !it.userMessage && it.text.isNotBlank())
+                    (it is TranscriptItem.Text && !it.userMessage && it.text.isNotBlank())
         }
         if (message.text.isNotBlank() && !transcriptHasAssistantText) {
             add(

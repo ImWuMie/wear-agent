@@ -4,9 +4,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * The JSON shape of one image inside a persisted record. Swapping the codec swaps
- * where the bytes live — inline base64, or a name pointing at a stored file —
- * without any other persistence code changing.
+ * The JSON shape of one image in a persisted record. Swapping the codec swaps where
+ * the bytes live — inline base64, or a name pointing at a file — with no other
+ * persistence change.
  */
 interface ImageCodec {
     fun encode(image: ImageAttachment): JSONObject
@@ -15,7 +15,7 @@ interface ImageCodec {
     fun decode(json: JSONObject): ImageAttachment?
 }
 
-/** Self-contained base64: the default where no store is available. */
+/** Self-contained base64; the default where no store is available. */
 object InlineImages : ImageCodec {
     override fun encode(image: ImageAttachment): JSONObject = JSONObject()
         .put("mediaType", image.mediaType)
@@ -86,6 +86,7 @@ object TranscriptCodec {
                     item.getString("text"),
                     decodeImages(item.optJSONArray("images"), images),
                 )
+
                 "assistant" -> {
                     val calls = item.getJSONArray("calls")
                     TranscriptItem.Assistant(

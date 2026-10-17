@@ -6,18 +6,11 @@ import org.json.JSONObject
 import java.io.File
 
 /**
- * Stores message images as files under `files/images/` and persists only a
- * `name` reference in the session record, so a JSONL line stays small and a
- * conversation loads without carrying megabytes of base64.
+ * Message images live as content-addressed files under `files/images/`, with the
+ * session record holding only a `name` reference: the same bytes are stored once
+ * across messages and sessions, and [retain] drops files no session names any more.
  *
- * Writes are content-addressed by [ImageCodec]'s name, so the same image reused
- * across messages or sessions is stored once. Files are reference-counted
- * against the sessions that name them; a file no session references any more is
- * deleted by [retain].
- *
- * The store assumes it is the only writer. [put] resolves its names in one
- * directory snapshot, and [retain] re-snapshots on every call, so a concurrent
- * prune could delete a file another thread just wrote.
+ * Assumes a single writer: a concurrent [retain] could delete a file [put] just wrote.
  */
 class ImageStore(private val directory: File) {
     private val lock = Any()
@@ -26,10 +19,7 @@ class ImageStore(private val directory: File) {
         directory.mkdirs()
     }
 
-    /**
-     * Writes [image] and returns its reference. Content-addressed, so writing the
-     * same bytes twice is a no-op.
-     */
+    /** Content-addressed: writing the same bytes twice is a no-op. */
     fun put(image: ImageAttachment): String {
         val name = nameOf(image)
         val file = File(directory, name)
@@ -40,11 +30,9 @@ class ImageStore(private val directory: File) {
     }
 
     /**
-     * Reads [name] back; null when it is absent or unreadable.
-     *
-     * Resolves against the filesystem rather than a cached listing: the app holds
-     * several `SessionLog` instances (activity, service, settings), and one
-     * created before an image was written must still see it.
+     * Null when absent or unreadable. Reads the filesystem rather than a cached
+     * listing: the app holds several `SessionLog` instances, and one created
+     * before an image was written must still see it.
      */
     fun load(name: String): ImageAttachment? {
         if (name.isEmpty()) return null
@@ -54,10 +42,7 @@ class ImageStore(private val directory: File) {
         }.getOrNull()
     }
 
-    /**
-     * Deletes every stored image no longer named by [sessions]. Call after a
-     * session is written or removed, so the store tracks the records that survive.
-     */
+    /** Drops files no session in [sessions] names; call after a session is written or removed. */
     fun retain(sessions: List<SessionImages>) {
         val live = HashSet<String>()
         sessions.forEach { session -> session.names.forEach { live.add(it) } }
@@ -75,7 +60,7 @@ class ImageStore(private val directory: File) {
         return digest.joinToString("") { "%02x".format(it) } + extensionOf(image.mediaType)
     }
 
-    /** The stored file carries the media type in its extension; that is the only copy of it. */
+    /** The extension is the only record of the media type. */
     private fun extensionOf(mediaType: String): String = when (mediaType.lowercase()) {
         "image/png" -> ".png"
         "image/gif" -> ".gif"
@@ -91,17 +76,12 @@ class ImageStore(private val directory: File) {
     }
 }
 
-/** One session's image references, the input to [ImageStore.retain]. */
+/** One session's image references; input to [ImageStore.retain]. */
 data class SessionImages(val id: String, val names: List<String>)
 
-/** Decodes [ImageAttachment.base64] into the bytes the store writes. */
 private fun ImageAttachment.bytes(): ByteArray = java.util.Base64.getDecoder().decode(base64)
 
-/**
- * The on-disk codec: encodes an image as a `name` reference and resolves that
- * name through [store]. An image whose file is gone decodes to null and is
- * dropped from the message rather than failing the whole load.
- */
+/** Encodes an image as a `name` reference; an image whose file is gone decodes to null and is dropped. */
 class StoredImages(private val store: ImageStore) : ImageCodec {
     override fun encode(image: ImageAttachment): JSONObject = JSONObject()
         .put("name", store.put(image))

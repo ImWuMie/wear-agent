@@ -7,6 +7,7 @@ import org.scilab.forge.jlatexmath.TeXConstants
 import org.scilab.forge.jlatexmath.TeXFormula
 import ru.noties.jlatexmath.awt.AndroidGraphics2D
 import ru.noties.jlatexmath.awt.Color
+import androidx.core.graphics.createBitmap
 
 /** Inline formulas keep operators compact; display formulas use full-size layout. */
 internal enum class MathStyle(val texStyle: Int) {
@@ -63,7 +64,7 @@ private fun rasterize(source: String, size: Float, style: MathStyle): Bitmap? = 
         .build()
     val width = icon.iconWidth.coerceAtLeast(1)
     val height = icon.iconHeight.coerceAtLeast(1)
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(width, height)
     val graphics = AndroidGraphics2D()
     graphics.setCanvas(Canvas(bitmap))
     icon.paintIcon(null, graphics, 0, 0)

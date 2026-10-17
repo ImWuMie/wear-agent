@@ -1,8 +1,12 @@
 package dev.undefinedteam.wearagent.presentation.chat.images
 
+import android.annotation.SuppressLint
 import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,9 +18,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,45 +51,38 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Base64
 
-/**
- * Thumbnail edge, and how many fit across the bubble or the drawer strip. 64dp
- * keeps a two-up row inside the round bezel's chord at the bubble's widest point.
- */
+/** Thumbnail edge; the strips scroll, so only one tile has to fit at a time. */
 internal val THUMBNAIL = 64.dp
-internal const val THUMBNAILS_PER_ROW = 2
 
-/** Null for bytes the platform cannot decode; a broken image must not break the list. */
+/** Null when the bytes will not decode; a broken image must not break the list. */
 internal fun decodeImage(base64: String): ImageBitmap? = runCatching {
     val bytes = Base64.getDecoder().decode(base64)
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
 }.getOrNull()
 
 /**
- * Decodes [images] off the main thread, keeping their order and a null slot for
- * anything undecodable. A session replays its images on every load, so this must
- * never run on the composition thread.
+ * Decodes [images] off the main thread, preserving order with a null slot for
+ * anything undecodable. A session replays its images on every load.
  */
 @Composable
 internal fun rememberDecodedImages(images: List<ImageAttachment>): List<ImageBitmap?> {
-    val decoded by produceState(initialValue = emptyList<ImageBitmap?>(), images) {
+    val decoded by produceState(initialValue = emptyList(), images) {
         value = withContext(Dispatchers.Default) { images.map { decodeImage(it.base64) } }
     }
     return decoded
 }
 
 /**
- * Full-screen preview: double-tap animates between fit and a zoomed-in view, pinch
- * scales freely and follows the fingers, drag pans while zoomed, long-press opens
- * the action menu, and back closes. There is no tap-to-dismiss: a stray tap while
- * inspecting an image should not throw the preview away, so dismissal is the
- * explicit back gesture.
+ * Full-screen preview: double-tap animates between fit and zoom, pinch scales,
+ * drag pans while zoomed, long-press opens the menu, back closes. No tap-to-dismiss
+ * — a stray tap while inspecting an image should not throw it away.
  */
 @Composable
+@SuppressLint("LocalContextGetResourceValueCall")
 internal fun ImagePreviewDialog(image: ImageAttachment, onDismiss: () -> Unit) {
     val bitmap = rememberDecodedImages(listOf(image)).firstOrNull()
-    // Animated, not a plain state: a double-tap must glide between fit and zoom
-    // instead of snapping. A pinch sets the value directly, so it tracks the
-    // fingers; a double-tap runs an animation that the next gesture can interrupt.
+    // Animatable, so a double-tap glides instead of snapping while a pinch can still
+    // set the value directly and cancel the animation.
     val scale = remember { Animatable(MIN_SCALE) }
     val offsetX = remember { Animatable(0f) }
     val offsetY = remember { Animatable(0f) }
@@ -99,9 +93,8 @@ internal fun ImagePreviewDialog(image: ImageAttachment, onDismiss: () -> Unit) {
     BackHandler {
         if (menu) menu = false else onDismiss()
     }
-    // A double-tap from fit animates in on the centre; from any zoom it eases back
-    // to fit. Resetting the pan is part of the same glide, so the image does not
-    // jump off-centre at the end.
+    // Resetting the pan rides the same animation, so the image does not jump
+    // off-centre when the zoom ends.
     fun toggleZoom() {
         val zoomedOut = scale.value <= MIN_SCALE
         scope.launch {
@@ -122,18 +115,16 @@ internal fun ImagePreviewDialog(image: ImageAttachment, onDismiss: () -> Unit) {
             Modifier
                 .fillMaxSize()
                 .background(PREVIEW_BACKDROP)
-                // Pinch/pan first, then the tap handlers: a transform gesture must
-                // not be read as a tap.
+                // Transform before taps: a pan must not be read as a tap.
                 .pointerInput(bitmap) {
                     if (bitmap == null) return@pointerInput
                     detectTransformGestures { _, pan, zoom, _ ->
-                        // Direct assignment, not animateTo: the image must track the
-                        // gesture frame by frame. snapTo cancels any running
-                        // double-tap animation so the two never fight.
+                        // snapTo, not animateTo: the image tracks the gesture frame by
+                        // frame, and a running double-tap animation is cancelled.
                         val next = (scale.value * zoom).coerceIn(MIN_SCALE, MAX_SCALE)
                         scope.launch { scale.snapTo(next) }
-                        // Pan only while zoomed in; at fit scale there is nothing to
-                        // pan to and drifting the image off-centre reads as a bug.
+                        // Only while zoomed in: at fit scale panning would drift the
+                        // image off-centre for no reason.
                         if (next > MIN_SCALE) {
                             val limit = (next - MIN_SCALE) * size.width / 2f
                             scope.launch {

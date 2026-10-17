@@ -110,10 +110,19 @@ internal fun ToolActivities(
                     )
                 }
                 AnimatedVisibility(visible = expanded && result != null) {
+                    // Same treatment as the reasoning block: the result scrolls inside a
+                    // capped viewport instead of laying out in full, so a long payload
+                    // cannot push the bubble past the bezel. Unlike reasoning there is no
+                    // auto-scroll to the end: the user opened this deliberately, so it
+                    // starts at the beginning.
+                    val scroll = rememberScrollState()
                     SelectionContainer {
                         MarkdownText(
                             result.orEmpty(),
-                            Modifier.padding(top = 4.dp),
+                            Modifier
+                                .padding(top = 4.dp)
+                                .heightIn(max = 160.dp)
+                                .verticalScroll(scroll),
                             mathFitWidth = mathFitWidth,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

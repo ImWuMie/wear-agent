@@ -41,7 +41,11 @@ class ToolLoopTest {
 
                 assertFalse(result.canceled)
                 assertFalse(result.state.running)
-                assertEquals(TokensUsage(30, 6, 8), result.tokens)
+                // prompt/cached report the context the last round saw (20/4), not the
+                // sum across rounds (30/6): summing would misreport the turn's total
+                // input as the current context size. Completion is per-turn output and
+                // does sum.
+                assertEquals(TokensUsage(20, 4, 8), result.tokens)
                 assertEquals(2, search.requestCount)
                 assertEquals(2, model.requestCount)
                 val toolResults = result.transcript.filterIsInstance<TranscriptItem.ToolResult>()

@@ -1,7 +1,6 @@
 package dev.undefinedteam.wearagent.agent.tools
 
 import dev.undefinedteam.wearagent.agent.ToolCall
-import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.agent.TranscriptItem
 import okhttp3.Call
 import okhttp3.OkHttpClient
@@ -14,7 +13,6 @@ import java.io.InputStream
 import java.io.InterruptedIOException
 import java.net.SocketTimeoutException
 import java.util.concurrent.TimeUnit
-import kotlin.io.bufferedReader
 
 /**
  * Base for HTTP-backed tools. Owns the shared machinery: sticky cancellation
@@ -81,7 +79,11 @@ abstract class HttpTool : Tool {
      * Executes one HTTP call, registered so [cancel] aborts it mid-flight and
      * unregistered only after [block] consumes the response.
      */
-    protected fun <T> executeHttp(client: OkHttpClient, request: Request, block: (Response) -> T): T {
+    protected fun <T> executeHttp(
+        client: OkHttpClient,
+        request: Request,
+        block: (Response) -> T
+    ): T {
         val networkCall = client.newCall(request)
         synchronized(lock) {
             checkCancellation()

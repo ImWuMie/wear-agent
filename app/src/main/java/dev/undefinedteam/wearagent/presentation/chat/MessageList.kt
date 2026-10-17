@@ -113,7 +113,6 @@ internal fun LiveBubble(
 }
 
 
-
 @Composable
 internal fun MessageList(
     log: SessionLog,
@@ -132,7 +131,8 @@ internal fun MessageList(
     }
     val curved = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.curvedList
     val roundFit = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.roundFit
-    val mathFitWidth = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.mathFitWidth
+    val mathFitWidth =
+        settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.mathFitWidth
     if (messages.isEmpty() && !turnState.running) {
         // Empty session: hero title + input hint, like the reference layout
         EmptyChatHero()

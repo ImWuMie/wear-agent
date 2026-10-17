@@ -1,5 +1,6 @@
 package dev.undefinedteam.wearagent.utils
 
+import android.annotation.SuppressLint
 import okhttp3.OkHttpClient
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
@@ -14,10 +15,13 @@ import javax.net.ssl.X509TrustManager
  * client.
  */
 object InsecureTls {
-    private val trustAll = object : X509TrustManager {
-        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+    private val trustAll = @SuppressLint("CustomX509TrustManager")
+    object : X509TrustManager {
+        override fun checkClientTrusted(chain: Array<out X509Certificate>?, authType: String?) =
+            Unit
 
-        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) = Unit
+        override fun checkServerTrusted(chain: Array<out X509Certificate>?, authType: String?) =
+            Unit
 
         override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
     }

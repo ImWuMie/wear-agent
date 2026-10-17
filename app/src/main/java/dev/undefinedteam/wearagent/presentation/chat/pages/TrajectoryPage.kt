@@ -12,10 +12,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -219,10 +222,17 @@ private fun TrajectoryField(label: String, body: String) {
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.outline,
     )
+    // A row expands to show payload and result; either can be arbitrarily long, so
+    // each gets its own capped, scrollable viewport rather than laying out in full.
+    val scroll = rememberScrollState()
     SelectionContainer {
         Text(
             body,
-            Modifier.fillMaxWidth().padding(top = 1.dp),
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 1.dp)
+                .heightIn(max = 160.dp)
+                .verticalScroll(scroll),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -27,7 +27,7 @@ android {
 
     defaultConfig {
         applicationId = "dev.undefinedteam.wearagent"
-        minSdk = 30
+        minSdk = 33
         targetSdk = 36
         versionCode = (System.getenv("VERSION_CODE") ?: "1").toInt()
         versionName = System.getenv("VERSION_NAME") ?: "1.0"

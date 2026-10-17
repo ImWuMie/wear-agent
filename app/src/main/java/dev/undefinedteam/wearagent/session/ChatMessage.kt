@@ -1,8 +1,8 @@
 package dev.undefinedteam.wearagent.session
 
+import dev.undefinedteam.wearagent.agent.ImageAttachment
 import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.TranscriptItem
-import dev.undefinedteam.wearagent.agent.ImageAttachment
 
 /**
  * One persisted chat line. Assistant lines additionally carry the reasoning,

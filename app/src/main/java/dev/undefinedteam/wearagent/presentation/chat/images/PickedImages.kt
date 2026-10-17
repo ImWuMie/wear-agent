@@ -11,13 +11,9 @@ import java.io.ByteArrayOutputStream
 import java.util.Base64
 
 /**
- * Turns picked image [Uri]s into attachments ready to send. Every image is
- * downscaled and re-encoded, so a photo off a 12MP camera does not become a
- * multi-megabyte base64 payload on a watch's connection: the longest edge is
- * capped at [MAX_EDGE] and the result is always JPEG.
- *
- * Uses [ImageDecoder], which applies the source's EXIF rotation on decode —
- * `BitmapFactory` would hand back a sideways bitmap.
+ * Turns picked [Uri]s into sendable attachments, downscaled to a [MAX_EDGE] JPEG so
+ * a camera photo does not become a multi-megabyte payload. [ImageDecoder] applies
+ * the source's EXIF rotation; `BitmapFactory` would hand back a sideways bitmap.
  */
 internal suspend fun encodePickedImages(context: Context, uris: List<Uri>): List<ImageAttachment> =
     withContext(Dispatchers.IO) {
@@ -46,7 +42,6 @@ private fun encodePickedImage(context: Context, uri: Uri): ImageAttachment? {
     return ImageAttachment(JPEG, Base64.getEncoder().encodeToString(jpeg))
 }
 
-/** Longest-edge cap. Beyond this a vision model gains nothing but payload size. */
 private const val MAX_EDGE = 1024
 private const val QUALITY = 80
 private const val JPEG = "image/jpeg"

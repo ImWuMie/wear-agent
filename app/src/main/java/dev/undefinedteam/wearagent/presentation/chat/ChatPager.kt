@@ -18,12 +18,12 @@ import androidx.wear.compose.foundation.pager.HorizontalPager
 import androidx.wear.compose.foundation.pager.PagerState
 import androidx.wear.compose.material3.HorizontalPagerScaffold
 import androidx.wear.compose.material3.MaterialTheme
-import kotlinx.coroutines.launch
 import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.presentation.chat.pages.ContextPage
 import dev.undefinedteam.wearagent.presentation.chat.pages.TrajectoryPage
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.DEFAULT_CONTEXT_WINDOW
+import kotlinx.coroutines.launch
 
 private const val CHAT_PAGE = 0
 private const val CONTEXT_PAGE = 1
@@ -99,7 +99,14 @@ internal fun ChatPager(
                         // The info pages use the chat page's layout recipe — a centred
                         // curved list whose items scale and fade at the bezel — at the
                         // narrower width that keeps full-width rows off the round edge.
-                        CONTEXT_PAGE -> ContextPage(messages, tools, systemPrompt, contextWindow, roundFit)
+                        CONTEXT_PAGE -> ContextPage(
+                            messages,
+                            tools,
+                            systemPrompt,
+                            contextWindow,
+                            roundFit
+                        )
+
                         else -> TrajectoryPage(messages, focusIndex, roundFit, jumpToChat)
                     }
                 }

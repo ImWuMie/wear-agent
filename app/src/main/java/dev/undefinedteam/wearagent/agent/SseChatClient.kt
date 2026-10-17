@@ -1,8 +1,8 @@
 package dev.undefinedteam.wearagent.agent
 
+import dev.undefinedteam.wearagent.utils.InsecureTls.insecureTls
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
-import dev.undefinedteam.wearagent.utils.InsecureTls.insecureTls
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody

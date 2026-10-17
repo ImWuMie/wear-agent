@@ -56,17 +56,10 @@ fun contextBreakdown(
 /** Rough token count for a character count; ~4 characters per token. */
 private fun charsToTokens(chars: Int): Int = if (chars <= 0) 0 else (chars + 3) / 4
 
-/**
- * Characters attributed to one attached image. Providers bill an inline image
- * by its dimensions, not its payload, so the base64 length would grossly
- * overstate the cost; this is a deliberately rough, fixed estimate.
- */
+/** Rough characters per image: providers bill by dimensions, not base64 length. */
 private const val IMAGE_CHARS = 1000
 
-/**
- * Scales [segments] so they sum to [total], keeping their proportions. Rounding
- * drift is folded into the largest slice so the sum is exact.
- */
+/** Scales [segments] to sum to [total]; rounding drift lands on the largest slice so the sum is exact. */
 private fun scaleToTotal(segments: List<ContextSegment>, total: Int): List<ContextSegment> {
     val estimated = segments.sumOf { it.tokens }
     if (estimated <= 0 || total <= 0) return segments

@@ -5,11 +5,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.runtime.Composable
@@ -18,8 +18,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
@@ -60,7 +60,11 @@ fun MarkdownText(
 
                 is Block.CodeBlock -> CodeBlockSurface(block.text)
                 is Block.Formula -> FormulaImage(block.source, mathFitWidth)
-                is Block.Table -> RichTextBlock(block.content, MaterialTheme.typography.bodySmall, color)
+                is Block.Table -> RichTextBlock(
+                    block.content,
+                    MaterialTheme.typography.bodySmall,
+                    color
+                )
             }
         }
     }
@@ -146,7 +150,13 @@ private fun FormulaImage(source: String, fitWidth: Boolean) {
     val size = with(density) { 15.sp.toPx() }
     // produceState otherwise retains the previous block's bitmap when streaming changes its source.
     key(source, size) {
-        val image by produceState<Bitmap?>(initialValue = cachedFormula(source, size, MathStyle.DISPLAY)) {
+        val image by produceState(
+            initialValue = cachedFormula(
+                source,
+                size,
+                MathStyle.DISPLAY
+            )
+        ) {
             value = withContext(Dispatchers.Default) {
                 renderFormula(source, size, MathStyle.DISPLAY)
             }
@@ -169,7 +179,9 @@ private fun FormulaImage(source: String, fitWidth: Boolean) {
         } else {
             // Scrollable mode: the formula keeps its natural size and can be panned sideways when
             // it is wider than the screen, instead of being scaled down to fit.
-            Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
+            Box(Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())) {
                 Image(
                     bitmap.asImageBitmap(),
                     contentDescription = source,

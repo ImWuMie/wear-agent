@@ -21,7 +21,7 @@ val SessionsPage: SettingsPage = settingsPage(
     parent = ChatPage,
     titleRes = R.string.sessions,
 ) { list ->
-    val state = shared<SessionsState>("sessions") { SessionsState().also { it.refresh(sessions) } }
+    val state = shared("sessions") { SessionsState().also { it.refresh(sessions) } }
 
     fun refresh() = state.refresh(sessions)
 

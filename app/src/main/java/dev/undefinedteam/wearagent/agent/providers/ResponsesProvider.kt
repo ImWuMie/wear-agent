@@ -1,15 +1,15 @@
 package dev.undefinedteam.wearagent.agent.providers
 
-import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.EndpointKind
-import dev.undefinedteam.wearagent.agent.supportedImages
 import dev.undefinedteam.wearagent.agent.Message
 import dev.undefinedteam.wearagent.agent.MessageDelta
+import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.agent.SseChatClient
 import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.agent.TranscriptItem
+import dev.undefinedteam.wearagent.agent.supportedImages
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -21,7 +21,8 @@ class ResponsesProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
         return if (base.endsWith(SUFFIX)) base else base + SUFFIX
     }
 
-    override fun authHeaders(request: ModelRequest) = listOf("Authorization" to "Bearer ${request.apiKey}")
+    override fun authHeaders(request: ModelRequest) =
+        listOf("Authorization" to "Bearer ${request.apiKey}")
 
     override fun requestBody(
         request: ModelRequest,

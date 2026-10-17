@@ -18,7 +18,6 @@ import java.io.IOException
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
-import kotlin.io.bufferedReader
 
 /** Read-only Parallel public MCP search, with no credentials or provider fallback. */
 class WebSearchTool(
@@ -28,7 +27,7 @@ class WebSearchTool(
         .callTimeout(45, TimeUnit.SECONDS)
         .build(),
     private val endpoint: String = DEFAULT_ENDPOINT,
-    ) : HttpTool() {
+) : HttpTool() {
     // Keep shorter caller timeouts, but never permit an unbounded injected client.
     private val http = boundedBuilder(http, 20_000, 45_000, 45_000)
         .retryOnConnectionFailure(false)
@@ -282,6 +281,7 @@ class WebSearchTool(
 
     companion object {
         const val DEFAULT_ENDPOINT = "https://search.parallel.ai/mcp"
+
         /** Settings key for this tool's toggle; see [ToolSetting]. */
         const val KEY = "web_search_enabled"
         private const val LABEL = "Parallel MCP response"

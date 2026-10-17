@@ -41,8 +41,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.material3.MaterialTheme
 import dev.undefinedteam.wearagent.R
-import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.agent.ImageAttachment
+import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.presentation.chat.images.AttachButton
 import dev.undefinedteam.wearagent.presentation.chat.images.AttachmentStrip
 import dev.undefinedteam.wearagent.session.AgentSettings

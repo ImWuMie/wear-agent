@@ -153,10 +153,13 @@ class FetchTool(
         private const val MAX_BODY_CHARS = 16 * 1024
         private const val MAX_URL_CHARS = 2048
         private const val MAX_HEADER_CHARS = 4096
-        private val ALLOWED_METHODS = setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
+        private val ALLOWED_METHODS =
+            setOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
         private val BODYLESS = setOf("GET", "HEAD")
+
         // OkHttp computes these itself; a model-supplied value would break the request.
-        private val FORBIDDEN_HEADERS = setOf("content-length", "host", "connection", "transfer-encoding")
+        private val FORBIDDEN_HEADERS =
+            setOf("content-length", "host", "connection", "transfer-encoding")
 
         val DEFINITION = ToolDefinition(
             name = "fetch",

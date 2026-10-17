@@ -86,6 +86,11 @@
     <string name="close_preview">关闭</string>
     <string name="image_preview">图片预览</string>
     <string name="trajectory_images">图片 ×%1$d</string>
+    <string name="images">照片</string>
+    <string name="loading_images">正在读取图片…</string>
+    <string name="no_images">手表上还没有图片</string>
+    <string name="images_permission">需要「读取图片」权限才能浏览手表上的图片</string>
+    <string name="images_denied">未获得权限，可在系统设置里为 WearAgent 开启「图片和视频」权限</string>
     <string name="view_request">查看请求信息</string>
     <string name="rewind_here">回退到此处</string>
     <string name="fetch_tool">抓取网页</string>

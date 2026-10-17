@@ -3,7 +3,6 @@ package dev.undefinedteam.wearagent.presentation.chat
 import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.spring
@@ -21,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -31,22 +31,24 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.wear.compose.material3.HorizontalPageIndicator
 import androidx.wear.compose.foundation.pager.rememberPagerState
+import androidx.wear.compose.material3.HorizontalPageIndicator
 import androidx.wear.compose.material3.MaterialTheme
 import dev.undefinedteam.wearagent.agent.AgentService
-import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.agent.ImageAttachment
+import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.agent.tools.defaultTools
+import dev.undefinedteam.wearagent.presentation.chat.images.ImagePickerActivity
+import dev.undefinedteam.wearagent.presentation.chat.images.encodePickedImages
 import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
-import dev.undefinedteam.wearagent.presentation.chat.images.encodePickedImages
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun ChatScreen(
@@ -63,7 +65,7 @@ fun ChatScreen(
     val inputStop = remember(density) { with(density) { 56.dp.toPx() } }
     val configStop = remember(density) { with(density) { 112.dp.toPx() } }
     val pull = remember { mutableFloatStateOf(0f) }
-    var stage by remember { mutableStateOf(0) }
+    var stage by remember { mutableIntStateOf(0) }
     val columnState = rememberLazyListState()
     var editing by remember { mutableStateOf<ChatMessage?>(null) }
     var sheetMessage by remember { mutableStateOf<ChatMessage?>(null) }
@@ -85,13 +87,15 @@ fun ChatScreen(
     val contextWindow = agentSettings.contextWindow
     val systemPrompt = agentSettings.effectiveSystemPrompt
     val pager = rememberPagerState(pageCount = { 3 })
-    // Images staged for the next send live here, not in the drawer: the picker
-    // launcher is a composition-level concern and its result must outlive the
-    // drawer being pulled shut.
+    // Staged here, not in the drawer: the picker outlives the drawer being shut.
     var attachments by remember { mutableStateOf(emptyList<ImageAttachment>()) }
+    // The picker runs in its own activity; encoding the returned URIs happens here so
+    // the picker never handles image bytes.
     val pickImages = rememberLauncherForActivityResult(
-        ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED_IMAGES),
-    ) { uris ->
+        ActivityResultContracts.StartActivityForResult(),
+    ) { result ->
+        if (result.resultCode != android.app.Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val uris = ImagePickerActivity.readUris(result.data)
         if (uris.isNotEmpty()) scope.launch {
             attachments = attachments + encodePickedImages(activity, uris)
         }
@@ -121,7 +125,7 @@ fun ChatScreen(
     val dismissSheet: () -> Unit = {
         sheetVisible = false
         sheetWipe?.cancel()
-        sheetWipe = scope.launch { delay(150); sheetMessage = null }
+        sheetWipe = scope.launch { delay(150.milliseconds); sheetMessage = null }
     }
     Box(
         Modifier
@@ -141,6 +145,7 @@ fun ChatScreen(
         ) {
             MessageList(log, settings, turn, sent, columnState, { openSheet(it) }, jumpToId)
         }
+
         if (editing != null) {
             EditMessageDialog(
                 editing!!,
@@ -159,11 +164,7 @@ fun ChatScreen(
             stage = 0
         }, attachments, { attachments = it }, { index ->
             attachments = attachments.toMutableList().also { it.removeAt(index) }
-        }, {
-            pickImages.launch(
-                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
-            )
-        }, onStop, {
+        }, { pickImages.launch(Intent(activity, ImagePickerActivity::class.java)) }, onStop, {
             pull.floatValue = 0f
             stage = 0
             onOpenSettings()
@@ -234,6 +235,3 @@ fun ChatScreen(
         }
     }
 }
-
-/** How many images one pick may return; the drawer's strip shows them all. */
-private const val MAX_PICKED_IMAGES = 10

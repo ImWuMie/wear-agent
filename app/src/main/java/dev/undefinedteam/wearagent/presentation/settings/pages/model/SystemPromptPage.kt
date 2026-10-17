@@ -23,7 +23,7 @@ val SystemPromptPage: SettingsPage = settingsPage(
     parent = ModelPage,
     titleRes = R.string.system_prompt,
 ) { list ->
-    val state = shared<PromptsState>("prompts") { PromptsState() }
+    val state = shared("prompts") { PromptsState() }
 
     list.switch(R.string.system_prompt_enabled, current.systemPromptEnabled) { value ->
         launch { store.setSystemPromptEnabled(value) }
@@ -51,7 +51,7 @@ val SystemPromptDetailPage: SettingsPage = settingsPage(
     parent = SystemPromptPage,
     titleRes = R.string.system_prompt,
 ) { list ->
-    val state = shared<PromptsState>("prompts") { PromptsState() }
+    val state = shared("prompts") { PromptsState() }
     val prompt = current.systemPrompts.firstOrNull { it.id == state.editingId.value }
         ?: return@settingsPage
 

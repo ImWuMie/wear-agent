@@ -18,12 +18,12 @@ import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.agent.ChatProvider
+import dev.undefinedteam.wearagent.agent.EndpointKind
 import dev.undefinedteam.wearagent.agent.ModelRequest
 import dev.undefinedteam.wearagent.presentation.settings.SettingRow
 import dev.undefinedteam.wearagent.presentation.settings.SettingsPage
 import dev.undefinedteam.wearagent.presentation.settings.SettingsPageScope
 import dev.undefinedteam.wearagent.presentation.settings.settingsPage
-import dev.undefinedteam.wearagent.agent.EndpointKind
 import dev.undefinedteam.wearagent.session.DEFAULT_CONTEXT_WINDOW
 import dev.undefinedteam.wearagent.session.EndpointProfile
 import kotlinx.coroutines.Dispatchers
@@ -47,7 +47,7 @@ val EndpointsPage: SettingsPage = settingsPage(
     parent = ModelPage,
     titleRes = R.string.endpoints,
 ) { list ->
-    val editor = shared<EndpointEditorState>("endpoints") { EndpointEditorState() }
+    val editor = shared("endpoints") { EndpointEditorState() }
 
     list.row(R.string.new_endpoint) {
         launch {
@@ -74,7 +74,7 @@ val EndpointDetailPage: SettingsPage = settingsPage(
     parent = EndpointsPage,
     titleRes = R.string.endpoints,
 ) { list ->
-    val editor = shared<EndpointEditorState>("endpoints") { EndpointEditorState() }
+    val editor = shared("endpoints") { EndpointEditorState() }
     val profile = current.endpoints.firstOrNull { it.id == editor.editingId } ?: return@settingsPage
 
     list.subHeader(R.string.endpoint_name)
@@ -139,7 +139,7 @@ val ModelsPage: SettingsPage = settingsPage(
     parent = EndpointsPage,
     titleRes = R.string.model,
 ) { list ->
-    val editor = shared<EndpointEditorState>("endpoints") { EndpointEditorState() }
+    val editor = shared("endpoints") { EndpointEditorState() }
     val profile = current.endpoints.firstOrNull { it.id == editor.editingId } ?: return@settingsPage
 
     when {

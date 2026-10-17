@@ -87,6 +87,11 @@
     <string name="close_preview">Close</string>
     <string name="image_preview">Image preview</string>
     <string name="trajectory_images">Images ×%1$d</string>
+    <string name="images">Photos</string>
+    <string name="loading_images">Loading images…</string>
+    <string name="no_images">No images on the watch yet</string>
+    <string name="images_permission">Photo access is needed to browse images on the watch</string>
+    <string name="images_denied">Permission not granted. Enable Photos and videos for WearAgent in system settings</string>
     <string name="view_request">View request</string>
     <string name="rewind_here">Rewind to here</string>
     <string name="fetch_tool">Fetch</string>

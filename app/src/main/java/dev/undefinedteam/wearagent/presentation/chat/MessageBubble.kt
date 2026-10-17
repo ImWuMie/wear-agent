@@ -1,5 +1,6 @@
 package dev.undefinedteam.wearagent.presentation.chat
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,8 +23,8 @@ import androidx.wear.compose.material3.LocalContentColor
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
-import dev.undefinedteam.wearagent.agent.ToolActivity
 import dev.undefinedteam.wearagent.agent.TokensUsage
+import dev.undefinedteam.wearagent.agent.ToolActivity
 import dev.undefinedteam.wearagent.agent.TranscriptItem
 import dev.undefinedteam.wearagent.presentation.chat.images.ImageStrip
 import dev.undefinedteam.wearagent.presentation.markdown.MarkdownText
@@ -53,7 +54,7 @@ private fun transcriptTools(transcript: List<TranscriptItem>): List<ToolActivity
 internal fun Bubble(
     message: ChatMessage,
     mathFitWidth: Boolean = true,
-    modifier: Modifier = Modifier,
+    @SuppressLint("ModifierParameter") modifier: Modifier = Modifier,
     transformation: SurfaceTransformation? = null,
     roundFit: Boolean = true,
     activeThinking: Boolean = false,
@@ -106,7 +107,12 @@ internal fun Bubble(
                 onLongPress = onLongPress,
             ) {
                 Column {
-                    if (tools.isNotEmpty()) ToolActivities(tools, toolsRunning, onLongPress, mathFitWidth)
+                    if (tools.isNotEmpty()) ToolActivities(
+                        tools,
+                        toolsRunning,
+                        onLongPress,
+                        mathFitWidth
+                    )
                     if (message.reasoning.isNotBlank()) {
                         ThinkingBlock(
                             message.reasoning,
@@ -116,9 +122,17 @@ internal fun Bubble(
                             onLongPress = onLongPress,
                         )
                     }
-                    if (message.text.isNotBlank()) MarkdownText(message.text, mathFitWidth = mathFitWidth)
+                    if (message.text.isNotBlank()) MarkdownText(
+                        message.text,
+                        mathFitWidth = mathFitWidth
+                    )
                     if (activeThinking && message.reasoning.isBlank()) ThinkingDots()
-                    if (!message.userMessage) message.tokens?.let { UsageLine(it, message.elapsedMs) }
+                    if (!message.userMessage) message.tokens?.let {
+                        UsageLine(
+                            it,
+                            message.elapsedMs
+                        )
+                    }
                 }
             }
         }

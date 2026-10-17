@@ -118,8 +118,12 @@ class ToolLoop(
             }
             outcome.tokens?.let {
                 hasUsage = true
-                prompt += it.prompt
-                cached += it.cached
+                // The last round's prompt is the current context size; summing the
+                // rounds would report the whole turn's input as if it were the
+                // context, growing quadratically with tool rounds.
+                prompt = it.prompt
+                cached = it.cached
+                // Completion is the one figure that is per-turn output, so it sums.
                 completion += it.completion
             }
             elapsedMs += outcome.elapsedMs

@@ -261,7 +261,7 @@ class ChatProviderTest {
     }
 
     @Test fun protocolSwitchNormalizesCallsInsteadOfReusingForeignNativeBlocks() {
-        for (kind in EndpointKind.values()) {
+        for (kind in EndpointKind.entries) {
             enqueue(finalText(kind, "Done"))
             val foreign = if (kind == EndpointKind.COMPLETIONS) EndpointKind.ANTHROPIC else EndpointKind.COMPLETIONS
             provider(kind).stream(request(kind), listOf(
@@ -434,6 +434,32 @@ class ChatProviderTest {
         assertEquals(history, decoded)
     }
 
+    @Test fun anthropicMarksThreeCacheBreakpoints() {
+        val definition = ToolDefinition("web_search", "Search", """{"type":"object","properties":{"query":{"type":"string"}}}""")
+        enqueue(finalText(EndpointKind.ANTHROPIC, "ok"))
+        val history = listOf(
+            TranscriptItem.Text(true, "first"),
+            TranscriptItem.Text(false, "reply"),
+            TranscriptItem.Text(true, "second"),
+        )
+        ChatProvider(EndpointKind.ANTHROPIC).stream(
+            ModelRequest(server.url("/v1").toString(), "test-model", "key", systemPrompt = "sys"), history,
+            tools = listOf(definition), knownTools = listOf(definition), onDelta = {},
+        )
+        val body = requestBody()
+        fun ephemeral(node: JSONObject?) = node?.optJSONObject("cache_control")?.optString("type")
+        // 1. system block
+        assertEquals("ephemeral", ephemeral(body.getJSONArray("system").getJSONObject(0)))
+        // 2. last tool definition
+        val tools = body.getJSONArray("tools")
+        assertEquals("ephemeral", ephemeral(tools.getJSONObject(tools.length() - 1)))
+        // 3. last block of the last message
+        val messages = body.getJSONArray("messages")
+        val tailContent = messages.getJSONObject(messages.length() - 1).getJSONArray("content")
+        assertEquals("ephemeral", ephemeral(tailContent.getJSONObject(tailContent.length() - 1)))
+        // no more than three
+        assertEquals(3, body.toString().split("ephemeral").size - 1)
+    }
     @Test fun providerFailuresAreNotReturnedAsSuccessfulPartialAnswers() {
         val failures = listOf(
             EndpointKind.COMPLETIONS to """{"error":{"message":"invalid key"}}""",

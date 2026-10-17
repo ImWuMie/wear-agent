@@ -1,8 +1,8 @@
 package dev.undefinedteam.wearagent.session
 
 import android.content.Context
-import dev.undefinedteam.wearagent.agent.TranscriptCodec
 import dev.undefinedteam.wearagent.agent.TokensUsage
+import dev.undefinedteam.wearagent.agent.TranscriptCodec
 import org.json.JSONObject
 import java.io.File
 
@@ -36,8 +36,8 @@ class SessionLog(context: Context) {
     fun create(): String {
         var id = System.currentTimeMillis().toString()
         var file = file(id)
-        // Two sessions created in the same millisecond would otherwise share one
-        // file, silently merging them; bump until the name is actually free.
+        // Same-millisecond sessions would otherwise share a file and merge; bump
+        // until the name is free.
         while (!file.createNewFile()) {
             id = (id.toLong() + 1).toString()
             file = file(id)
@@ -71,7 +71,10 @@ class SessionLog(context: Context) {
     fun editMessage(sessionId: String, messageId: Long, text: String) {
         val changed = load(sessionId).map {
             if (it.id == messageId) {
-                it.copy(text = text, transcript = if (it.userMessage) it.transcript else emptyList())
+                it.copy(
+                    text = text,
+                    transcript = if (it.userMessage) it.transcript else emptyList()
+                )
             } else it
         }
         write(sessionId, changed)
@@ -92,12 +95,12 @@ class SessionLog(context: Context) {
     private fun write(sessionId: String, messages: List<ChatMessage>) {
         if (sessionId.isBlank()) return
         file(sessionId).writeText(messages.joinToString("") { encode(it) + "\n" })
-        // A truncated session may have dropped the only reference to an image;
-        // prune after the record is durable so a crash cannot lose both.
+        // A truncation may have dropped an image's last reference; prune after the
+        // record is durable so a crash cannot lose both.
         prune()
     }
 
-    /** Drops every stored image no session references any more. */
+    /** Drops stored images no session references any more. */
     private fun prune() {
         images.retain(
             directory.listFiles { file -> file.extension == "jsonl" }.orEmpty().map { file ->
@@ -106,7 +109,7 @@ class SessionLog(context: Context) {
         )
     }
 
-    /** The image names [file] still references, read without decoding whole messages. */
+    /** Names [file] still references, read without decoding whole messages. */
     private fun referencedImages(file: File): List<String> = file.readLines().flatMap { line ->
         val json = runCatching { JSONObject(line) }.getOrNull() ?: return@flatMap emptyList()
         val array = json.optJSONArray("images") ?: return@flatMap emptyList()

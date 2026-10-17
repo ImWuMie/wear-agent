@@ -3,16 +3,14 @@ package dev.undefinedteam.wearagent.agent
 data class ToolCall(val id: String, val name: String, val arguments: String)
 
 /**
- * One image the user attached to a message, carried as base64 so a session
- * replays without the original file. [mediaType] is the IANA type; each protocol
- * renames it to its own wire field.
+ * An image attached to a message, carried as base64 so a session replays without the
+ * original file. Each protocol renames [mediaType] to its own wire field.
  */
 data class ImageAttachment(val mediaType: String, val base64: String)
 
 /**
- * Media types every supported protocol accepts inline (jpeg/png/gif/webp).
- * Anything else is dropped rather than sent: a rejected image would fail the
- * whole request, while a missing one only costs that attachment.
+ * Media types every protocol accepts inline. Anything else is dropped rather than
+ * sent: a rejected image fails the whole request, a missing one costs nothing.
  */
 fun List<ImageAttachment>.supportedImages(): List<ImageAttachment> =
     filter { it.mediaType.lowercase() in SUPPORTED_IMAGE_TYPES }

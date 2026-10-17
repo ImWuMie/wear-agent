@@ -143,7 +143,7 @@ jobs:
             echo "| Version | \`${{ steps.version.outputs.name }}\` (versionCode ${{ steps.version.outputs.code }}) |"
             echo "| Commit | [\`${GITHUB_SHA::7}\`](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}) |"
             echo "| Built | $(date -u '+%Y-%m-%d %H:%M UTC') |"
-            echo "| Min SDK | 30 (Wear OS 3) |"
+            echo "| Min SDK | 33 (Wear OS 4) |"
             echo "| Target SDK | 36 |"
             # Reflect the actual signer instead of a hardcoded claim.
             CERT="$(apksigner verify --print-certs "$APK" 2>/dev/null | grep -m1 "certificate DN" | sed 's/.*certificate DN: //')"

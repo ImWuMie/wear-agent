@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The in-app picker browses the media store; the system picker would not
+         need this, but it lays out a square grid the round bezel clips. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
@@ -40,6 +43,9 @@
         </activity>
         <activity
             android:name=".presentation.settings.SettingsActivity"
+            android:exported="false" />
+        <activity
+            android:name=".presentation.chat.images.ImagePickerActivity"
             android:exported="false" />
         <service
             android:name=".agent.AgentService"

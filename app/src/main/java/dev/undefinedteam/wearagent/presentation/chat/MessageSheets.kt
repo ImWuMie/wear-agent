@@ -1,5 +1,6 @@
 package dev.undefinedteam.wearagent.presentation.chat
 
+import android.annotation.SuppressLint
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
@@ -45,6 +46,7 @@ import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.session.ChatMessage
 
 @Composable
+@SuppressLint("LocalContextGetResourceValueCall")
 internal fun MessageActionSheet(
     message: ChatMessage,
     onDismiss: () -> Unit,

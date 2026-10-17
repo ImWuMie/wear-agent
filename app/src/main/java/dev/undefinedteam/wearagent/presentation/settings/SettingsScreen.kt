@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
 import kotlinx.coroutines.launch
+import androidx.core.net.toUri
 
 /**
  * Settings navigation shell. Page content lives in the page files; this only
@@ -56,7 +58,7 @@ internal fun SettingsScreen(store: SettingsStore, sessions: SessionLog) {
 
     val current by store.settings.collectAsStateWithLifecycle(AgentSettings())
     var page by remember { mutableStateOf<SettingsPage?>(null) }
-    var direction by remember { mutableStateOf(1) }
+    var direction by remember { mutableIntStateOf(1) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val state = rememberTransformingLazyColumnState()
@@ -83,7 +85,7 @@ internal fun SettingsScreen(store: SettingsStore, sessions: SessionLog) {
 
         override fun openUrl(url: String) {
             val intent =
-                Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
+                Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE)
             val executor = ContextCompat.getMainExecutor(context)
             RemoteActivityHelper(context, executor)
                 .startRemoteActivity(intent, null)
