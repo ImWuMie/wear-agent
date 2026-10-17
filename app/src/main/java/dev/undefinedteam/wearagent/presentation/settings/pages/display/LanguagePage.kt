@@ -1,11 +1,15 @@
-package dev.undefinedteam.wearagent.presentation.settings.pages
+package dev.undefinedteam.wearagent.presentation.settings.pages.display
 
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.presentation.settings.SettingsPage
 import dev.undefinedteam.wearagent.presentation.settings.settingsPage
 
-/** Language category: system / Chinese / English, applied via activity recreate. */
-val LanguagePage: SettingsPage = settingsPage("language", titleRes = R.string.language) { list ->
+/** Language: system / Chinese / English, applied via activity recreate. */
+val LanguagePage: SettingsPage = settingsPage(
+    "language",
+    parent = DisplayPage,
+    titleRes = R.string.language,
+) { list ->
     list.toggle(R.string.lang_system, current.language.isBlank()) {
         launch {
             store.setLanguage("")

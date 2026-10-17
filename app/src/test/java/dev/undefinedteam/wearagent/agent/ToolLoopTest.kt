@@ -1,6 +1,6 @@
 package dev.undefinedteam.wearagent.agent
 
-import dev.undefinedteam.wearagent.agent.tools.WebSearchTool
+import dev.undefinedteam.wearagent.agent.tools.web.WebSearchTool
 import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.EndpointProfile
 import okhttp3.mockwebserver.Dispatcher
@@ -34,10 +34,9 @@ class ToolLoopTest {
                 search.enqueue(searchResult("https://developer.android.com/training/wearables"))
                 search.enqueue(searchResult("https://developer.android.com", "two"))
                 val states = ArrayList<TurnState>()
-                val loop = ToolLoop(search = WebSearchTool(
+                val loop = ToolLoop(tools = listOf(WebSearchTool(
                     endpoint = search.url("/mcp").toString()
-                )
-                )
+                )))
                 val result = loop.run(settings(model), listOf(TranscriptItem.Text(true, "Compare docs")), states::add)
 
                 assertFalse(result.canceled)
@@ -53,6 +52,7 @@ class ToolLoopTest {
                 model.takeRequest(5, TimeUnit.SECONDS)!!
                 val continuation = JSONObject(model.takeRequest(5, TimeUnit.SECONDS)!!.body.readUtf8())
                     .getJSONArray("messages")
+                // No system prompt is configured, so the history leads.
                 assertEquals("assistant", continuation.getJSONObject(1).getString("role"))
                 assertEquals(2, continuation.getJSONObject(1).getJSONArray("tool_calls").length())
                 assertEquals("one", continuation.getJSONObject(2).getString("tool_call_id"))
@@ -75,10 +75,9 @@ class ToolLoopTest {
                         return MockResponse().setSocketPolicy(SocketPolicy.NO_RESPONSE)
                     }
                 }
-                val loop = ToolLoop(search = WebSearchTool(
+                val loop = ToolLoop(tools = listOf(WebSearchTool(
                     endpoint = search.url("/mcp").toString()
-                )
-                )
+                )))
                 val executor = Executors.newSingleThreadExecutor()
                 try {
                     val future = executor.submit<ToolLoop.Outcome> {
@@ -114,7 +113,7 @@ class ToolLoopTest {
                 model.enqueue(stream(toolDelta("two", "android")))
                 search.enqueue(searchResult("https://developer.android.com"))
                 val loop = ToolLoop(
-                    search = WebSearchTool(endpoint = search.url("/mcp").toString()),
+                    tools = listOf(WebSearchTool(endpoint = search.url("/mcp").toString())),
                     maxToolRounds = 1,
                 )
                 val result = loop.run(settings(model), listOf(TranscriptItem.Text(true, "Search docs")))
@@ -143,10 +142,34 @@ class ToolLoopTest {
         }
     }
 
+    @Test
+    fun disabledToolIsNeitherOfferedNorExecuted() {
+        MockWebServer().use { model ->
+            MockWebServer().use { search ->
+                model.start()
+                search.start()
+                // The model asks for the tool even though settings disabled it.
+                model.enqueue(stream(toolDelta("one", "wear os")))
+                model.enqueue(stream(textDelta("Done.")))
+                val loop = ToolLoop(tools = listOf(WebSearchTool(endpoint = search.url("/mcp").toString())))
+                val result = loop.run(
+                    settings(model).copy(toolFlags = emptyMap()),
+                    listOf(TranscriptItem.Text(true, "Search docs")),
+                )
+                assertEquals(0, search.requestCount)
+                val first = JSONObject(model.takeRequest(5, TimeUnit.SECONDS)!!.body.readUtf8())
+                assertEquals(0, first.optJSONArray("tools")?.length() ?: 0)
+                val rejected = result.transcript.filterIsInstance<TranscriptItem.ToolResult>().single()
+                assertTrue(rejected.isError)
+                assertTrue(rejected.content.contains("Unknown tool"))
+            }
+        }
+    }
+
     private fun settings(model: MockWebServer) = AgentSettings(
         endpoints = listOf(EndpointProfile("test", "test", endpoint = model.url("/v1").toString(), model = "test", apiKey = "test")),
         endpointId = "test",
-        webSearchEnabled = true,
+        toolFlags = mapOf(WebSearchTool.KEY to true),
     )
 
     private fun stream(vararg events: JSONObject): MockResponse = MockResponse()

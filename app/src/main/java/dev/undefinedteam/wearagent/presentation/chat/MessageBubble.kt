@@ -39,6 +39,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
@@ -50,12 +51,13 @@ import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.agent.ToolActivity
+import dev.undefinedteam.wearagent.agent.tools.toolSummary
+import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.TranscriptItem
 import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.TurnState
 import dev.undefinedteam.wearagent.presentation.markdown.MarkdownText
 import dev.undefinedteam.wearagent.session.ChatMessage
-import org.json.JSONObject
 
 @Composable
 internal fun CurvedMessages(
@@ -64,10 +66,20 @@ internal fun CurvedMessages(
     onSelect: (ChatMessage) -> Unit,
     roundFit: Boolean = true,
     mathFitWidth: Boolean = true,
+    focusId: Long? = null,
 ) {
     val state = rememberTransformingLazyColumnState()
     val spec = rememberTransformationSpec()
-    LaunchedEffect(messages.size, turnState.running) {
+    // A jump request from the request view scrolls the target into view. While it
+    // is set the list stays where the user put it — the follow-the-tail effect is
+    // suppressed, otherwise the two effects fight and the list drifts to the tail.
+    // The target is cleared by the caller when the user sends a new message.
+    LaunchedEffect(focusId) {
+        val index = focusId?.let { id -> messages.indexOfFirst { it.id == id } } ?: -1
+        if (index >= 0) state.animateScrollToItem(index)
+    }
+    LaunchedEffect(messages.size, turnState.running, focusId) {
+        if (focusId != null) return@LaunchedEffect
         val target = messages.lastIndex + if (turnState.live) 1 else 0
         if (target >= 0) {
             if (turnState.running) state.scrollToItem(target) else state.animateScrollToItem(target)
@@ -143,7 +155,11 @@ private fun transcriptTools(transcript: List<TranscriptItem>): List<ToolActivity
     }
 }
 
-/** Search activity is separate from both the assistant body and its reasoning. */
+/**
+ * One collapsible block per tool call, stacked above the body like the reasoning
+ * block: the header is the owning tool's own summary of the request, expanding
+ * reveals the result.
+ */
 @Composable
 private fun ToolActivities(
     tools: List<ToolActivity>,
@@ -154,26 +170,21 @@ private fun ToolActivities(
     tools.forEach { activity ->
         key(activity.call.id) {
             var expanded by remember { mutableStateOf(false) }
-            val query = remember(activity.call.arguments) {
-                runCatching { JSONObject(activity.call.arguments).optString("query") }
-                    .getOrDefault("")
-                    .ifBlank { activity.call.arguments }
-            }
+            val summary = remember(activity.call.arguments) { toolSummary(activity.call) }
             val result = activity.result
             val status = stringResource(
                 when {
-                    activity.isError -> R.string.search_failed
-                    result != null -> R.string.search_completed
-                    running -> R.string.search_running
-                    else -> R.string.search_incomplete
+                    activity.isError -> R.string.tool_failed
+                    result != null -> R.string.tool_completed
+                    running -> R.string.tool_running
+                    else -> R.string.tool_incomplete
                 }
             )
-            val toggleLabel = stringResource(
-                if (expanded) R.string.search_hide_results else R.string.search_show_results
-            )
-            Column(Modifier
-                .fillMaxWidth()
-                .padding(bottom = 4.dp)) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 4.dp)
+            ) {
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -181,7 +192,9 @@ private fun ToolActivities(
                         .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                         .combinedClickable(
                             enabled = result != null,
-                            onClickLabel = toggleLabel,
+                            onClickLabel = stringResource(
+                                if (expanded) R.string.tool_hide_result else R.string.tool_show_result
+                            ),
                             onLongClick = onLongPress,
                         ) {
                             expanded = !expanded
@@ -192,21 +205,23 @@ private fun ToolActivities(
                 ) {
                     Column(Modifier.weight(1f)) {
                         Text(
-                            if (activity.call.name == "web_search") {
-                                "${stringResource(R.string.web_search)} · $status"
-                            } else "${activity.call.name} · $status",
+                            summary,
                             color = if (activity.isError) MaterialTheme.colorScheme.error
                             else MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            query,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.bodySmall,
+                            "${activity.call.name} · $status",
+                            color = MaterialTheme.colorScheme.outline,
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                     if (result != null) Text(
-                        if (expanded) "▲" else "▼",
+                        if (expanded) "\u25B2" else "\u25BC",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -217,6 +232,7 @@ private fun ToolActivities(
                             result.orEmpty(),
                             Modifier.padding(top = 4.dp),
                             mathFitWidth = mathFitWidth,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
                 }

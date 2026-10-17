@@ -18,6 +18,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
@@ -49,16 +50,17 @@ fun MarkdownText(
     source: String,
     modifier: Modifier = Modifier,
     mathFitWidth: Boolean = true,
+    color: Color = Color.Unspecified,
 ) {
     val blocks = remember(source) { parse(source) }
     Column(modifier) {
         blocks.forEach { block ->
             when (block) {
-                is Block.Rich -> RichTextBlock(block, MaterialTheme.typography.bodyMedium)
+                is Block.Rich -> RichTextBlock(block, MaterialTheme.typography.bodyMedium, color)
 
                 is Block.CodeBlock -> CodeBlockSurface(block.text)
                 is Block.Formula -> FormulaImage(block.source, mathFitWidth)
-                is Block.Table -> RichTextBlock(block.content, MaterialTheme.typography.bodySmall)
+                is Block.Table -> RichTextBlock(block.content, MaterialTheme.typography.bodySmall, color)
             }
         }
     }
@@ -69,12 +71,12 @@ fun MarkdownText(
  * math-bearing text: fractions get their full height, while ordinary lines stay compact.
  */
 @Composable
-private fun RichTextBlock(block: Block.Rich, style: TextStyle) {
+private fun RichTextBlock(block: Block.Rich, style: TextStyle, color: Color = Color.Unspecified) {
     val inline = inlineContentFor(block.inline)
     val mathStyle = if (inline.isEmpty()) style else {
         style.copy(lineHeight = TextUnit.Unspecified, lineHeightStyle = null)
     }
-    Text(block.text, inlineContent = inline, style = mathStyle)
+    Text(block.text, inlineContent = inline, style = mathStyle, color = color)
 }
 
 /**

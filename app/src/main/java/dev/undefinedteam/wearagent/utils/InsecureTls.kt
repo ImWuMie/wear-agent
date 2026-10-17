@@ -1,4 +1,4 @@
-package dev.undefinedteam.wearagent.agent
+package dev.undefinedteam.wearagent.utils
 
 import okhttp3.OkHttpClient
 import java.security.SecureRandom

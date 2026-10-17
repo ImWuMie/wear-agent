@@ -26,11 +26,12 @@ class CompletionsProvider(insecureTls: Boolean = false) : SseChatClient(insecure
         request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
+        knownTools: List<ToolDefinition>,
     ): String {
         val root = JSONObject()
             .put("model", request.model)
             .put("stream", true)
-            .put("messages", messages(history))
+            .put("messages", messages(history, request.systemPrompt))
             .put("stream_options", JSONObject().put("include_usage", true))
         if (tools.isNotEmpty()) {
             root.put("tools", JSONArray().also { array ->
@@ -63,8 +64,11 @@ class CompletionsProvider(insecureTls: Boolean = false) : SseChatClient(insecure
 
     override fun newState(onDelta: (MessageDelta) -> Unit): StreamState = CompletionsState(onDelta)
 
-    private fun messages(history: List<TranscriptItem>): JSONArray {
+    private fun messages(history: List<TranscriptItem>, systemPrompt: String): JSONArray {
         val array = JSONArray()
+        if (systemPrompt.isNotBlank()) {
+            array.put(JSONObject().put("role", "system").put("content", systemPrompt))
+        }
         history.forEach { item ->
             when (item) {
                 is TranscriptItem.Text -> array.put(

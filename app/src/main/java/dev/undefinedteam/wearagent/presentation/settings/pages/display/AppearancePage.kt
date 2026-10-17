@@ -1,11 +1,15 @@
-package dev.undefinedteam.wearagent.presentation.settings.pages
+package dev.undefinedteam.wearagent.presentation.settings.pages.display
 
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.presentation.settings.SettingsPage
 import dev.undefinedteam.wearagent.presentation.settings.settingsPage
 
-/** Display category: curved list and round-fit bubble layouts. */
-val DisplayPage: SettingsPage = settingsPage("display", titleRes = R.string.display) { list ->
+/** Appearance: curved list and round-fit bubble layouts. */
+val AppearancePage: SettingsPage = settingsPage(
+    "appearance",
+    parent = DisplayPage,
+    titleRes = R.string.appearance,
+) { list ->
     list.switch(R.string.curved_list, current.curvedList) { value ->
         launch { store.setCurvedList(value) }
     }

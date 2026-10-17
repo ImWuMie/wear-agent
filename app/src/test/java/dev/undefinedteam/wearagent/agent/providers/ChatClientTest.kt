@@ -9,6 +9,7 @@ import dev.undefinedteam.wearagent.agent.TranscriptCodec
 import dev.undefinedteam.wearagent.agent.EndpointKind
 import dev.undefinedteam.wearagent.agent.TranscriptItem
 import dev.undefinedteam.wearagent.agent.ToolDefinition
+import dev.undefinedteam.wearagent.agent.tools.web.WebSearchTool
 import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.EndpointProfile
 import okhttp3.mockwebserver.MockResponse
@@ -56,7 +57,7 @@ class ChatProviderTest {
         val text = StringBuilder()
         val reasoning = StringBuilder()
         val first = client.stream(request(EndpointKind.COMPLETIONS), listOf(TranscriptItem.Text(true, "Find sources")),
-            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition))
+            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition), knownTools = listOf(definition))
         assertEquals("Searching", text.toString())
         assertEquals("Check Look sourcesup", reasoning.toString())
         assertEquals(listOf("call_a", "call_b"), first.toolCalls.map { it.id })
@@ -117,7 +118,7 @@ class ChatProviderTest {
         val text = StringBuilder()
         val reasoning = StringBuilder()
         val first = client.stream(request(EndpointKind.RESPONSES), listOf(TranscriptItem.Text(true, "Search")),
-            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition))
+            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition), knownTools = listOf(definition))
         assertEquals("Searching", text.toString())
         assertEquals(" more", reasoning.toString())
         assertEquals("call_real", first.toolCalls.single().id)
@@ -204,7 +205,7 @@ class ChatProviderTest {
         val text = StringBuilder()
         val reasoning = StringBuilder()
         val first = client.stream(request(EndpointKind.ANTHROPIC), listOf(TranscriptItem.Text(true, "Search")),
-            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition))
+            onDelta = { text.append(it.text); reasoning.append(it.reasoning) }, tools = listOf(definition), knownTools = listOf(definition))
         assertEquals("Searching", text.toString())
         assertEquals("Plan", reasoning.toString())
         assertEquals(listOf("use_a", "use_b"), first.toolCalls.map { it.id })
@@ -221,7 +222,9 @@ class ChatProviderTest {
         )
         enqueue(finalText(EndpointKind.ANTHROPIC, "Answer"))
         val restored = TranscriptCodec.decode(JSONArray(TranscriptCodec.encode(history).toString()))
-        val final = client.stream(request(EndpointKind.ANTHROPIC), restored, onDelta = {})
+        val final = client.stream(
+            request(EndpointKind.ANTHROPIC), restored,
+            knownTools = listOf(WebSearchTool().definition), onDelta = {})
         val continuation = requestBody()
         assertEquals("none", continuation.getJSONObject("tool_choice").getString("type"))
         assertEquals("web_search", continuation.getJSONArray("tools").getJSONObject(0).getString("name"))

@@ -26,11 +26,15 @@ class ResponsesProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
         request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
+        knownTools: List<ToolDefinition>,
     ): String {
         val root = JSONObject()
             .put("model", request.model)
             .put("stream", true)
             .put("input", input(history))
+        if (request.systemPrompt.isNotBlank()) {
+            root.put("instructions", request.systemPrompt)
+        }
         if (tools.isNotEmpty() || history.any {
                 it is TranscriptItem.Assistant && it.endpointKind == EndpointKind.RESPONSES &&
                         it.providerContent.isNotEmpty()

@@ -37,10 +37,56 @@ flowchart LR
   SSE implementation per protocol, all extending `SseChatClient` (HTTP, cancellation, SSE framing,
   model-list retry). `ToolLoop` runs one turn across multiple tool rounds. `Transcript` is the
   provider-agnostic history model; each provider converts it to its own wire format.
-- `session/` — `SettingsStore` (DataStore) and `SessionLog` (append-only JSONL, one file per
-  session). A killed process replays the file; nothing lives only in memory.
+- `agent/tools/` — model-callable tools, mirroring the provider shape: an `interface Tool`, an
+  `abstract class HttpTool`, and a `defaultTools()` registry.
+  - `Tool` is the contract the loop depends on: `definition`, optional `setting`/`enabledBy` for the
+    Settings toggle, `execute`, `cancel`. `ToolLoop` holds `List<Tool>`, offers only enabled tools,
+    and dispatches a call by `definition.name` — it never names a concrete tool.
+  - `HttpTool` owns the shared machinery: sticky cancellation that aborts in-flight calls, and the
+    failure rule — a thrown error becomes a model-facing error result, while cancellation stays an
+    `InterruptedIOException` the loop acts on. A subclass supplies `definition` and `invoke(call)`,
+    and uses `executeHttp`/`boundedBuilder` so cancellation and timeout bounds apply uniformly.
+  - Protocols must not know concrete tools. Anthropic needs historical schemas to replay a tool
+    block after tools are disabled, so the caller passes `knownTools` (all shipped definitions)
+    through `stream`/`requestBody` rather than the provider importing a tool.
+  - Implementations live in `tools/web/` (`WebSearchTool`, `FetchTool`); a tool with its own
+    dependencies can take a subpackage of its own.
+  - Adding a tool = implement `Tool` (usually via `HttpTool`), add it to `defaultTools()`, and give
+    it a `ToolSetting` if it needs a toggle. `ToolsPage` renders those toggles from the registry, so
+    the settings UI needs no edit.
+  - Tools that reach arbitrary hosts are opt-in and default off. `FetchTool` sends whatever the
+    model asks (any method/headers/body) to any http(s) URL, so it never follows redirects and caps
+    the response it buffers; keep that shape for any new network tool.
+- `session/` — `SettingsStore` (DataStore), `SessionLog` (append-only JSONL, one file per session),
+  and the pure view models the UI renders: `RequestInfo` (`expandHistory` — the one provider-history
+  rule, shared by `AgentService` and the request view — plus `describeRequest`) and
+  `ContextBreakdown` (the context bar's slice estimate). A killed process replays the file; nothing
+  lives only in memory.
+  - `SettingsStore` owns every persisted preference as an `AgentSettings` field. Add a preference by
+    adding the field, its DataStore key, and a `set…` method; the whole app reads it through one
+    `settings` flow. A preference whose absence is meaningful (a list the user can empty) must
+    distinguish "unset" from "empty" — `systemPrompts` does this by checking whether the key is
+    present, so deleting every prompt does not resurrect a default.
 - `presentation/` — Wear Compose UI. `chat/` (screen, pull-up drawer, bubbles, action sheets),
   `markdown/` (renderer), `settings/` (page registry + pages).
+  - The chat is a three-page `HorizontalPager` (`ChatPager`): the conversation, the context usage,
+    and the request trajectory. A long-press sheet's "view request" pages to the trajectory, which
+    renders `session/describeRequest` — one row per user/assistant/tool item with a role chip and a
+    one-line preview, expanding to the full payload and result, and long-pressing to jump back to
+    the message it came from. The context page is a stacked bar over `session/contextBreakdown`.
+  - Round-screen support is the `roundFit` setting: it narrows page/bubble widths and adds bezel
+    padding. Any new full-screen surface should honor it rather than hard-coding a width.
+  - `settings/` is a self-registering page tree: each page file declares a top-level
+    `settingsPage(...)` `val`, and the `SettingsPageFiles` manifest in `SettingsRegistry` touches
+    one symbol per file so class init registers it. Top-level pages (`parent == null`) are the
+    settings home; children are reachable only through their category. A new page inside an
+    existing file needs no manifest change; a new file needs one line. Pages are grouped by
+    category into subpackages (`chat/`, `model/`, `display/`, `system/`), each holding its
+    category page plus its children.
+  - `SettingsWidgets` holds the shared row components (`SettingRow`, `SettingToggle`, `SettingSwitch`,
+    `SettingField`, `SettingTextArea`, `TransformedItem`). A row that must scale at the bezel needs
+    `transformedHeight` *and* `graphicsLayer { applyContainerTransformation() }` — `TransformedItem`
+    does both, while `Scaled` alone only reserves height and will not scale.
 
 Keep `agent/` free of Android UI dependencies. `AgentService.kt` is the only file there that imports
 `android.*` (it is a `Service`); everything else is plain Kotlin so it stays JVM-testable.
@@ -130,7 +176,7 @@ The subject names the change; the body shows the key points, not a narrative.
 
 ## Security notes
 
-`agent/InsecureTls.kt` backs the per-endpoint "Ignore SSL certificate validation" setting. It
+`utils/InsecureTls.kt` backs the per-endpoint "Ignore SSL certificate validation" setting. It
 accepts any certificate and hostname, so it also removes interception protection. It must stay an
 explicit, per-endpoint, default-off choice, and never be applied to the fixed web-search endpoint
 (`tools/WebSearchTool.kt`) or shared with a verifying client.

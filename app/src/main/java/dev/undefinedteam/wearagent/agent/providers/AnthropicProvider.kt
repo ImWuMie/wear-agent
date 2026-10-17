@@ -9,7 +9,6 @@ import dev.undefinedteam.wearagent.agent.TokensUsage
 import dev.undefinedteam.wearagent.agent.ToolCall
 import dev.undefinedteam.wearagent.agent.ToolDefinition
 import dev.undefinedteam.wearagent.agent.TranscriptItem
-import dev.undefinedteam.wearagent.agent.tools.WebSearchTool
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -30,12 +29,16 @@ class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
         request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
+        knownTools: List<ToolDefinition>,
     ): String {
         val root = JSONObject()
             .put("model", request.model)
             .put("stream", true)
             .put("max_tokens", 1024)
             .put("messages", messages(history))
+        if (request.systemPrompt.isNotBlank()) {
+            root.put("system", request.systemPrompt)
+        }
         if (tools.isNotEmpty()) {
             root.put("tools", JSONArray().also { array ->
                 tools.forEach { tool ->
@@ -56,7 +59,7 @@ class AnthropicProvider(insecureTls: Boolean = false) : SseChatClient(insecureTl
             if (names.isNotEmpty()) {
                 root.put("tools", JSONArray().also { definitions ->
                     names.forEach { name ->
-                        val known = WebSearchTool.DEFINITION.takeIf { it.name == name }
+                        val known = knownTools.firstOrNull { it.name == name }
                         definitions.put(
                             JSONObject().put("name", name)
                                 .put(

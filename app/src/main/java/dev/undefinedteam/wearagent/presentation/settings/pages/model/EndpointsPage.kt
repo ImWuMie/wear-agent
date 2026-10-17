@@ -1,4 +1,4 @@
-package dev.undefinedteam.wearagent.presentation.settings.pages
+package dev.undefinedteam.wearagent.presentation.settings.pages.model
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -24,6 +24,8 @@ import dev.undefinedteam.wearagent.presentation.settings.SettingsPage
 import dev.undefinedteam.wearagent.presentation.settings.SettingsPageScope
 import dev.undefinedteam.wearagent.presentation.settings.settingsPage
 import dev.undefinedteam.wearagent.agent.EndpointKind
+import dev.undefinedteam.wearagent.session.DEFAULT_CONTEXT_WINDOW
+import dev.undefinedteam.wearagent.session.EndpointProfile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -37,10 +39,14 @@ internal class EndpointEditorState {
 }
 
 /**
- * Endpoints category. List/select endpoints; the detail and model-list child
- * pages share one [EndpointEditorState] via [dev.undefinedteam.wearagent.presentation.settings.SettingsPageScope.shared].
+ * Endpoints. List/select endpoints; the detail and model-list child pages share
+ * one [EndpointEditorState] via [dev.undefinedteam.wearagent.presentation.settings.SettingsPageScope.shared].
  */
-val EndpointsPage: SettingsPage = settingsPage("endpoints", titleRes = R.string.endpoints) { list ->
+val EndpointsPage: SettingsPage = settingsPage(
+    "endpoints",
+    parent = ModelPage,
+    titleRes = R.string.endpoints,
+) { list ->
     val editor = shared<EndpointEditorState>("endpoints") { EndpointEditorState() }
 
     list.row(R.string.new_endpoint) {
@@ -98,6 +104,15 @@ val EndpointDetailPage: SettingsPage = settingsPage(
     list.subHeader(R.string.api_key)
     list.field(R.string.api_key, profile.apiKey) { value ->
         launch { store.updateEndpoint(profile.id) { it.copy(apiKey = value) } }
+    }
+    list.subHeader(R.string.context_window)
+    contextWindowChoices.forEach { choice ->
+        list.toggle(
+            contextWindowLabel(choice),
+            profile.contextWindowOr(choice),
+        ) {
+            launch { store.updateEndpoint(profile.id) { it.copy(contextWindow = choice) } }
+        }
     }
     list.subHeader(R.string.security)
     list.switch(R.string.ignore_ssl, profile.insecureTls) { value ->
@@ -205,6 +220,30 @@ private fun SettingsPageScope.fetchModels(editor: EndpointEditorState) {
         }
     }
 }
+
+/**
+ * Common model context windows. An endpoint stores its own value; these are the
+ * presets the picker offers, so the free-space slice of the context bar has a
+ * denominator without the app having to guess a model's window.
+ */
+internal val contextWindowChoices = listOf(
+    8_000,
+    16_000,
+    32_000,
+    64_000,
+    128_000,
+    200_000,
+    256_000,
+    1_000_000,
+)
+
+/** Display label for a context-window preset, e.g. `128k`. */
+internal fun contextWindowLabel(tokens: Int): String =
+    if (tokens >= 1_000_000) "${tokens / 1_000_000}M" else "${tokens / 1_000}k"
+
+/** The endpoint's stored window, or [choice] when it is unset. */
+private fun EndpointProfile.contextWindowOr(choice: Int): Boolean =
+    (contextWindow.takeIf { it > 0 } ?: DEFAULT_CONTEXT_WINDOW) == choice
 
 private fun apiLabelRes(kind: EndpointKind): Int = when (kind) {
     EndpointKind.COMPLETIONS -> R.string.api_completions

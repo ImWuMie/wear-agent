@@ -1,4 +1,4 @@
-package dev.undefinedteam.wearagent.presentation.settings.pages
+package dev.undefinedteam.wearagent.presentation.settings.pages.chat
 
 import androidx.compose.runtime.mutableStateOf
 import dev.undefinedteam.wearagent.R
@@ -15,8 +15,12 @@ private class SessionsState {
     }
 }
 
-/** Sessions category: pick, create, and delete chat sessions. */
-val SessionsPage: SettingsPage = settingsPage("sessions", titleRes = R.string.sessions) { list ->
+/** Sessions: pick, create, and delete chat sessions. */
+val SessionsPage: SettingsPage = settingsPage(
+    "sessions",
+    parent = ChatPage,
+    titleRes = R.string.sessions,
+) { list ->
     val state = shared<SessionsState>("sessions") { SessionsState().also { it.refresh(sessions) } }
 
     fun refresh() = state.refresh(sessions)

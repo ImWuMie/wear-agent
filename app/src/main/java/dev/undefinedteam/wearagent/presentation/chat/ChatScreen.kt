@@ -37,11 +37,14 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.wear.compose.material3.HorizontalPageIndicator
+import androidx.wear.compose.foundation.pager.rememberPagerState
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.Text
 import dev.undefinedteam.wearagent.R
 import dev.undefinedteam.wearagent.agent.AgentService
 import dev.undefinedteam.wearagent.agent.TurnState
+import dev.undefinedteam.wearagent.agent.tools.defaultTools
 import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.SessionLog
@@ -72,9 +75,22 @@ fun ChatScreen(
     var sheetMessage by remember { mutableStateOf<ChatMessage?>(null) }
     var sheetVisible by remember { mutableStateOf(false) }
     var sheetWipe by remember { mutableStateOf<Job?>(null) }
+    var detailIndex by remember { mutableStateOf<Int?>(null) }
+    var jumpToId by remember { mutableStateOf<Long?>(null) }
     val scope = rememberCoroutineScope()
     val turnState by turn.collectAsStateWithLifecycle()
     val sessionId = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.sessionId
+    val allMessages by sent.collectAsStateWithLifecycle(initialValue = emptyList())
+    val roundFit = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value.roundFit
+    val agentSettings = settings.settings.collectAsStateWithLifecycle(AgentSettings()).value
+    // The tool schemas the model is offered are part of the context it is sent, so
+    // the context page counts them as the system slice.
+    val tools = remember(agentSettings) {
+        defaultTools().filter { it.enabledBy(agentSettings) }.map { it.definition }
+    }
+    val contextWindow = agentSettings.contextWindow
+    val systemPrompt = agentSettings.effectiveSystemPrompt
+    val pager = rememberPagerState(pageCount = { 3 })
 
     // The service appends the finished assistant message to the log; `sent` only
     // tracks sends, so it goes stale after every turn. Refresh it when a turn
@@ -83,6 +99,12 @@ fun ChatScreen(
     // equality, so the message would linger on screen).
     LaunchedEffect(turnState.running, sessionId) {
         if (!turnState.running) sent.value = log.load(sessionId)
+    }
+
+    // A new turn means the user moved on; release the jump so the list follows
+    // the tail again.
+    LaunchedEffect(turnState.running) {
+        if (turnState.running) jumpToId = null
     }
 
     fun openSheet(message: ChatMessage) {
@@ -101,7 +123,19 @@ fun ChatScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        MessageList(log, settings, turn, sent, columnState, { openSheet(it) })
+        ChatPager(
+            allMessages,
+            pager,
+            detailIndex,
+            { detailIndex = null },
+            roundFit,
+            tools,
+            systemPrompt,
+            contextWindow,
+            onJumpToMessage = { id -> jumpToId = id },
+        ) {
+            MessageList(log, settings, turn, sent, columnState, { openSheet(it) }, jumpToId)
+        }
         if (editing != null) {
             EditMessageDialog(
                 editing!!,
@@ -122,6 +156,17 @@ fun ChatScreen(
             stage = 0
             onOpenSettings()
         }, stage, { stage = snapPull(pull, stage, inputStop, configStop) })
+        // Shown only while the pager moves: the dots are orientation, not chrome, so
+        // they fade out once a page settles. Placed above the pull sheet and clear of
+        // the bezel.
+        AnimatedVisibility(
+            visible = pager.isScrollInProgress,
+            enter = fadeIn(tween(120)),
+            exit = fadeOut(tween(220)),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            HorizontalPageIndicator(pager, Modifier.padding(bottom = 14.dp))
+        }
         if (sheetMessage != null) {
             AnimatedVisibility(
                 visible = sheetVisible,
@@ -159,6 +204,19 @@ fun ChatScreen(
                         dismissSheet()
                         editing = message
                     },
+                    onViewRequest = { message ->
+                        detailIndex = allMessages.indexOfFirst { it.id == message.id }
+                            .takeIf { it >= 0 }
+                        dismissSheet()
+                    },
+                    onRewind = { message ->
+                        val index = allMessages.indexOfFirst { it.id == message.id }
+                        if (index >= 0) {
+                            log.truncateFrom(sessionId, message.id)
+                            sent.value = log.load(sessionId)
+                        }
+                        dismissSheet()
+                    },
                 )
             }
         }
@@ -173,6 +231,7 @@ private fun MessageList(
     sent: MutableStateFlow<List<ChatMessage>>,
     columnState: LazyListState,
     onSelect: (ChatMessage) -> Unit,
+    focusId: Long? = null,
 ) {
     val persisted by sent.collectAsStateWithLifecycle(initialValue = emptyList())
     val turnState by turn.collectAsStateWithLifecycle()
@@ -189,10 +248,16 @@ private fun MessageList(
         return
     }
     if (curved) {
-        CurvedMessages(messages, turnState, onSelect, roundFit, mathFitWidth)
+        CurvedMessages(messages, turnState, onSelect, roundFit, mathFitWidth, focusId)
         return
     }
-    LaunchedEffect(messages.size, turnState.running) {
+    // A jump request from the request view wins over the follow-the-tail effect.
+    LaunchedEffect(focusId) {
+        val index = focusId?.let { id -> messages.indexOfFirst { it.id == id } } ?: -1
+        if (index >= 0) columnState.animateScrollToItem(index)
+    }
+    LaunchedEffect(messages.size, turnState.running, focusId) {
+        if (focusId != null) return@LaunchedEffect
         val target = messages.lastIndex + if (turnState.live) 1 else 0
         if (target >= 0) columnState.scrollToItem(target)
     }

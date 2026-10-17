@@ -2,26 +2,29 @@ package dev.undefinedteam.wearagent.presentation.settings
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnItemScope
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumnScope
 import androidx.wear.compose.material3.ListSubHeader
-import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.TransformationSpec
-import androidx.wear.compose.material3.lazy.transformedHeight
 import dev.undefinedteam.wearagent.presentation.settings.pages.AboutPage
-import dev.undefinedteam.wearagent.presentation.settings.pages.DisplayPage
-import dev.undefinedteam.wearagent.presentation.settings.pages.EndpointsPage
-import dev.undefinedteam.wearagent.presentation.settings.pages.InputPage
-import dev.undefinedteam.wearagent.presentation.settings.pages.LanguagePage
-import dev.undefinedteam.wearagent.presentation.settings.pages.SessionsPage
-import dev.undefinedteam.wearagent.presentation.settings.pages.ToolsPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.chat.ChatPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.chat.InputPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.chat.SessionsPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.display.AppearancePage
+import dev.undefinedteam.wearagent.presentation.settings.pages.display.DisplayPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.display.LanguagePage
+import dev.undefinedteam.wearagent.presentation.settings.pages.model.EndpointsPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.model.ModelPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.model.SystemPromptDetailPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.model.SystemPromptPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.model.ToolsPage
+import dev.undefinedteam.wearagent.presentation.settings.pages.system.SystemPage
 import dev.undefinedteam.wearagent.session.AgentSettings
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
@@ -120,12 +123,18 @@ fun settingsPage(
  * its child pages. One line per category file; child pages cost nothing here.
  */
 internal val SettingsPageFiles = listOf(
+    ChatPage,
     SessionsPage,
-    EndpointsPage,
     InputPage,
+    ModelPage,
+    EndpointsPage,
     ToolsPage,
+    SystemPromptPage,
+    SystemPromptDetailPage,
     DisplayPage,
+    AppearancePage,
     LanguagePage,
+    SystemPage,
     AboutPage,
 )
 
@@ -158,6 +167,15 @@ class PageList internal constructor(
         SettingToggle(this, spec, label, selected, onSelect)
     }
 
+    /** Radio row whose label needs composition, e.g. a name with a fallback. */
+    fun toggle(
+        selected: Boolean,
+        onSelect: () -> Unit,
+        label: @Composable RowScope.() -> Unit,
+    ) = column.item {
+        SettingToggle(this, spec, label, selected, onSelect)
+    }
+
     fun switch(labelRes: Int, checked: Boolean, onCheckedChange: (Boolean) -> Unit) =
         column.item {
             SettingSwitch(this, spec, stringResource(labelRes), checked, onCheckedChange)
@@ -165,6 +183,18 @@ class PageList internal constructor(
 
     fun field(labelRes: Int, value: String, onSave: (String) -> Unit) = column.item {
         Scaled(this, spec) { SettingField(stringResource(labelRes), value, onSave) }
+    }
+
+    /** Large multi-line editor item; [identity] keeps the caret stable across saves. */
+    fun area(
+        identity: Any,
+        labelRes: Int,
+        value: String,
+        onSave: (String) -> Unit,
+    ) = column.item {
+        TransformedItem(this, spec) {
+            SettingTextArea(identity, stringResource(labelRes), value, onSave)
+        }
     }
 
     fun subHeader(labelRes: Int) = column.item {
@@ -182,15 +212,12 @@ class PageList internal constructor(
         verticalArrangement: Arrangement.Vertical = Arrangement.Top,
         content: @Composable TransformingLazyColumnItemScope.() -> Unit,
     ) = column.item {
-        val transformation = SurfaceTransformation(spec)
-        Column(
-            Modifier
-                .transformedHeight(this, spec)
-                .graphicsLayer { with(transformation) { applyContainerTransformation() } }
-                .fillMaxWidth()
-                .then(modifier),
-            horizontalAlignment = horizontalAlignment,
-            verticalArrangement = verticalArrangement,
+        TransformedItem(
+            this,
+            spec,
+            modifier,
+            horizontalAlignment,
+            verticalArrangement,
         ) { this@item.content() }
     }
 }

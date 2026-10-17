@@ -10,6 +10,8 @@ data class ModelRequest(
     val model: String,
     val apiKey: String,
     val insecureTls: Boolean = false,
+    /** System prompt sent ahead of the history; blank means none. */
+    val systemPrompt: String = "",
 )
 
 /** One streamed increment; a single event may carry both text and reasoning. */
@@ -50,11 +52,17 @@ interface ChatProvider {
      * Runs one streaming round. Calls [onDelta] incrementally and returns the
      * completed [Message] when the stream terminates cleanly. Throws
      * [java.io.IOException] on transport/protocol failure or cancellation.
+     *
+     * [tools] are offered to the model this round. [knownTools] are the
+     * definitions of every tool the app ships; protocols that must replay a
+     * historical tool block after tools are disabled (Anthropic) use them to
+     * restore the original schema instead of inventing an empty one.
      */
     fun stream(
         request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition> = emptyList(),
+        knownTools: List<ToolDefinition> = emptyList(),
         onDelta: (MessageDelta) -> Unit = {},
     ): Message
 

@@ -51,6 +51,8 @@ internal fun MessageActionSheet(
     onDelete: (Long) -> Unit,
     onRegenerate: (Long) -> Unit,
     onEdit: (ChatMessage) -> Unit,
+    onViewRequest: (ChatMessage) -> Unit,
+    onRewind: (ChatMessage) -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
     val context = LocalContext.current
@@ -102,6 +104,18 @@ internal fun MessageActionSheet(
                     item {
                         ActionPageButton(this, spec, stringResource(R.string.edit_message)) {
                             onEdit(message)
+                            onDismiss()
+                        }
+                    }
+                    item {
+                        ActionPageButton(this, spec, stringResource(R.string.view_request)) {
+                            onViewRequest(message)
+                            onDismiss()
+                        }
+                    }
+                    item {
+                        ActionPageButton(this, spec, stringResource(R.string.rewind_here)) {
+                            onRewind(message)
                             onDismiss()
                         }
                     }

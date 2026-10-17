@@ -6,8 +6,10 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.Bundle
 import android.os.IBinder
+import android.os.SystemClock
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.addCallback
 import androidx.activity.compose.setContent
 import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
@@ -33,6 +35,8 @@ class MainActivity : ComponentActivity() {
     private val sent = MutableStateFlow<List<ChatMessage>>(emptyList())
     private var currentSessionId: String = ""
     private var service: AgentService? = null
+    private var confirmExit = true
+    private var lastBackPress = 0L
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -60,6 +64,24 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         bindService(Intent(this, AgentService::class.java), connection, BIND_AUTO_CREATE)
+        onBackPressedDispatcher.addCallback(this) {
+            if (!confirmExit) {
+                finish()
+                return@addCallback
+            }
+            val now = SystemClock.elapsedRealtime()
+            if (now - lastBackPress <= EXIT_CONFIRM_WINDOW_MS) {
+                finish()
+            } else {
+                lastBackPress = now
+                Toast.makeText(this@MainActivity, R.string.press_back_again, Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+        lifecycleScope.launch {
+            SettingsStore(this@MainActivity).settings.map { it.confirmExit }.distinctUntilChanged()
+                .collect { confirmExit = it }
+        }
         // React to session switches (new session, delete, switch in Settings) so the
         // chat always shows the active session instead of stale content.
         lifecycleScope.launch {
@@ -129,5 +151,9 @@ class MainActivity : ComponentActivity() {
                 ?.hideSoftInputFromWindow(view.windowToken, 0)
             view.clearFocus()
         }
+    }
+
+    private companion object {
+        const val EXIT_CONFIRM_WINDOW_MS = 2000L
     }
 }

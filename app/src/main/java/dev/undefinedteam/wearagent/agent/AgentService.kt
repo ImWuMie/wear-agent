@@ -14,6 +14,7 @@ import dev.undefinedteam.wearagent.presentation.chat.MainActivity
 import dev.undefinedteam.wearagent.session.ChatMessage
 import dev.undefinedteam.wearagent.session.SessionLog
 import dev.undefinedteam.wearagent.session.SettingsStore
+import dev.undefinedteam.wearagent.session.expandHistory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -104,15 +105,7 @@ class AgentService : Service() {
         if (config.endpoint.isBlank() || config.model.isBlank() || config.apiKey.isBlank()) {
             return TurnState(error = getString(R.string.missing_endpoint))
         }
-        val history = log.load(config.sessionId)
-        val providerHistory = ArrayList<TranscriptItem>()
-        for (message in history) {
-            if (!message.userMessage && message.transcript.isNotEmpty()) {
-                providerHistory.addAll(message.transcript)
-            } else {
-                providerHistory.add(TranscriptItem.Text(message.userMessage, message.text))
-            }
-        }
+        val providerHistory = expandHistory(log.load(config.sessionId))
         val outcome = currentRunner.run(config, providerHistory) { stateFlow.value = it }
         val result = outcome.state
         if (result.text.isNotBlank() || result.reasoning.isNotBlank() || outcome.transcript.isNotEmpty()) {

@@ -1,4 +1,4 @@
-package dev.undefinedteam.wearagent.agent
+package dev.undefinedteam.wearagent.utils
 
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -10,7 +10,10 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
-import dev.undefinedteam.wearagent.agent.InsecureTls.insecureTls
+import dev.undefinedteam.wearagent.agent.ChatProvider
+import dev.undefinedteam.wearagent.agent.EndpointKind
+import dev.undefinedteam.wearagent.agent.ModelRequest
+import dev.undefinedteam.wearagent.utils.InsecureTls.insecureTls
 import javax.net.ssl.SSLHandshakeException
 
 /**

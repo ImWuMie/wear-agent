@@ -1,6 +1,7 @@
 package dev.undefinedteam.wearagent.agent
 
-import dev.undefinedteam.wearagent.agent.tools.WebSearchTool
+import dev.undefinedteam.wearagent.agent.tools.Tool
+import dev.undefinedteam.wearagent.agent.tools.defaultTools
 import dev.undefinedteam.wearagent.session.AgentSettings
 import java.io.InterruptedIOException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -10,7 +11,7 @@ class ToolLoop(
     /** The endpoint kind picks the protocol implementation; resolved per turn. */
     private val providerFactory: (EndpointKind, Boolean) -> ChatProvider =
         { kind, insecureTls -> ChatProvider(kind, insecureTls) },
-    private val search: WebSearchTool = WebSearchTool(),
+    private val tools: List<Tool> = defaultTools(),
     private val maxToolRounds: Int = 6,
 ) {
     private val canceled = AtomicBoolean(false)
@@ -23,7 +24,7 @@ class ToolLoop(
     fun cancel() {
         canceled.set(true)
         provider?.cancel()
-        search.cancel()
+        tools.forEach { it.cancel() }
     }
 
     data class Outcome(
@@ -78,8 +79,8 @@ class ToolLoop(
             canceled = canceled.get(),
         )
 
-        val definitions =
-            if (settings.webSearchEnabled) listOf(WebSearchTool.DEFINITION) else emptyList()
+        val enabled = tools.filter { it.enabledBy(settings) }
+        val definitions = enabled.map { it.definition }
 
         while (!canceled.get()) {
             val roundText = StringBuilder()
@@ -92,9 +93,11 @@ class ToolLoop(
                         endpoint = settings.endpoint,
                         model = settings.model,
                         apiKey = settings.apiKey,
+                        systemPrompt = settings.effectiveSystemPrompt,
                     ),
                     providerHistory,
                     tools = availableTools,
+                    knownTools = tools.map { it.definition },
                     onDelta = { delta: MessageDelta ->
                         if (delta.text.isNotEmpty()) {
                             if (roundText.isEmpty() && text.isNotEmpty()) text.append("\n\n")
@@ -146,17 +149,20 @@ class ToolLoop(
                     exhausted || executions >= MAX_TOOL_CALLS ->
                         TranscriptItem.ToolResult(call.id, "Error: Tool call limit reached.", true)
 
-                    !settings.webSearchEnabled ->
+                    // A tool the model asked for is not offered this turn: either it is
+                    // disabled in settings or it does not exist. Both are model-facing
+                    // failures the model can recover from, never a thrown exception.
+                    enabled.none { it.definition.name == call.name } ->
                         TranscriptItem.ToolResult(
                             call.id,
-                            "Error: Web search is disabled in settings.",
+                            "Error: Unknown tool '${call.name.take(100)}'.",
                             true
                         )
 
                     else -> {
                         executions++
                         try {
-                            search.execute(call)
+                            enabled.first { it.definition.name == call.name }.execute(call)
                         } catch (error: InterruptedIOException) {
                             if (canceled.get()) {
                                 TranscriptItem.ToolResult(call.id, CANCELED_RESULT, true)

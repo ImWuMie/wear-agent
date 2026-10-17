@@ -1,6 +1,8 @@
-package dev.undefinedteam.wearagent.agent
+package dev.undefinedteam.wearagent.agent.tools.web
 
-import dev.undefinedteam.wearagent.agent.tools.WebSearchTool
+import dev.undefinedteam.wearagent.agent.ToolCall
+import dev.undefinedteam.wearagent.agent.TranscriptItem
+import dev.undefinedteam.wearagent.agent.tools.web.WebSearchTool
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer

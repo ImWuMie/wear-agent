@@ -2,7 +2,7 @@ package dev.undefinedteam.wearagent.agent
 
 import okhttp3.Call
 import okhttp3.MediaType.Companion.toMediaType
-import dev.undefinedteam.wearagent.agent.InsecureTls.insecureTls
+import dev.undefinedteam.wearagent.utils.InsecureTls.insecureTls
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -70,6 +70,7 @@ abstract class SseChatClient(insecureTls: Boolean = false) : ChatProvider {
         request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
+        knownTools: List<ToolDefinition>,
     ): String
 
     /** A fresh reducer for this stream. */
@@ -82,10 +83,11 @@ abstract class SseChatClient(insecureTls: Boolean = false) : ChatProvider {
         request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
+        knownTools: List<ToolDefinition>,
         onDelta: (MessageDelta) -> Unit,
     ): Message {
         checkCanceled()
-        val current = http.newCall(chatRequest(request, history, tools))
+        val current = http.newCall(chatRequest(request, history, tools, knownTools))
         synchronized(callLock) {
             checkCanceled()
             call = current
@@ -162,11 +164,12 @@ abstract class SseChatClient(insecureTls: Boolean = false) : ChatProvider {
         request: ModelRequest,
         history: List<TranscriptItem>,
         tools: List<ToolDefinition>,
+        knownTools: List<ToolDefinition>,
     ): Request {
         val builder = Request.Builder()
             .url(chatUrl(request))
             .header("Accept", "text/event-stream")
-            .post(requestBody(request, history, tools).toRequestBody(json))
+            .post(requestBody(request, history, tools, knownTools).toRequestBody(json))
         authHeaders(request).forEach { (name, value) -> builder.header(name, value) }
         return builder.build()
     }
